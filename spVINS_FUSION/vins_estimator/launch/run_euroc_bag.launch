@@ -1,0 +1,38 @@
+<?xml version="1.0"?>
+<launch>
+
+
+    <!-- ######### Enable the automatic change to new dataset ########### -->
+    <arg name="autorun"     default = "false" />
+
+    <!-- log direction for the vis aid -->
+    <arg name="log_dir" default="/home/$(env USER)/" />
+
+
+    <!-- ######### Choose the dataset ################################### -->
+    <arg name="bag_file" default = "/home/yutong/Rosbags/MH/MH_04_difficult.bag" />
+
+
+    <!-- VINS node -->
+    <node respawn="true" pkg="vins" type="vins_node" name="vins_estimator"
+            args="$(find vins)/../config/euroc/euroc_stereo_config.yaml"
+            output="screen"> </node>
+
+    <node respawn="true" pkg="loop_fusion" type="sp_loop_fusion_node" name="sp_loop_fusion"
+            args="$(find vins)/../config/euroc/euroc_stereo_config.yaml" output="screen">
+            <param name="pose_graph_save_path" value="$(arg log_dir)/vins_ba_"/>
+    </node>
+
+    <!-- Visualization node -->
+    <node pkg="rviz" type="rviz" name="rviz" respawn="true"
+          args="-d $(find vins)/../config/vins_rviz_config.rviz" />
+
+    <!-- Static transform for vizualization -->
+    <node pkg="tf" type="static_transform_publisher" name="world_vio_init_pub" args="0 0 0 0 0 0 1 world vio_init 1" />
+
+    <!-- ######### Play the dataset ###################################### -->
+    <param name ="/use_sim_time" value="true"/>
+    <node required="$(arg autorun)" pkg="rosbag" type="play" name="rosbag_play"
+          args="-r 0.2 --start 25 --clock $(arg bag_file)" output="log"/>
+
+</launch>
