@@ -42,8 +42,8 @@
   <buildtool_depend>catkin</buildtool_depend>
   <build_depend>camera_models</build_depend>
   <run_depend>camera_models</run_depend>
-  <build_depend>vins</build_depend>
-  <run_depend>vins</run_depend>
+  <build_depend>vins_estimator</build_depend>
+  <run_depend>vins_estimator</run_depend>
 
 
   <!-- The export tag contains other, unspecified, tags -->

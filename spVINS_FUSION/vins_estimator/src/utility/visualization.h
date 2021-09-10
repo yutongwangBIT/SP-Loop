@@ -28,8 +28,8 @@
 #include "../estimator/estimator.h"
 #include "../estimator/parameters.h"
 #include <fstream>
-#include <vins/features.h>
-#include <vins/featurePerId.h>
+#include <vins_estimator/features.h>
+#include <vins_estimator/featurePerId.h>
 //#include "utility.h"
 
 extern ros::Publisher pub_odometry;

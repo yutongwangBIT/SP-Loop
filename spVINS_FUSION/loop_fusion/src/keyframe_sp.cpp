@@ -13,8 +13,10 @@ static void reduceVector(vector<Derived> &v, vector<uchar> status)
 // create KeyFrameSP online
 KeyFrameSP::KeyFrameSP(double _time_stamp, int _index, Vector3d &_vio_T_w_i, Matrix3d &_vio_R_w_i, cv::Mat &_image,
 		           vector<cv::Point3f> &_point_3d, vector<cv::Point2f> &_point_2d_uv, vector<cv::Point2f> &_point_2d_norm,
-		           vector<double> &_point_id, cv::Mat &_descriptors, int _sequence)
+		           vector<double> &_point_id ,SPDetector* _sp, SPGlue* _sp_glue, int _sequence)
 {
+	sp_detector = _sp;
+	sp_glue = _sp_glue;
 	time_stamp = _time_stamp;
 	index = _index;
 	vio_T_w_i = _vio_T_w_i;
@@ -24,6 +26,7 @@ KeyFrameSP::KeyFrameSP(double _time_stamp, int _index, Vector3d &_vio_T_w_i, Mat
 	origin_vio_T = vio_T_w_i;		
 	origin_vio_R = vio_R_w_i;
 	image = _image.clone();
+	img_size = image.size();
 	cv::resize(image, thumbnail, cv::Size(80, 60));
 	point_3d = _point_3d;
 	point_2d_uv = _point_2d_uv;
@@ -34,13 +37,10 @@ KeyFrameSP::KeyFrameSP(double _time_stamp, int _index, Vector3d &_vio_T_w_i, Mat
 	has_fast_point = false;
 	loop_info << 0, 0, 0, 0, 0, 0, 0, 0;
 	sequence = _sequence;
-	descriptors = _descriptors;
-	std::cout<<"point_3d:"<<point_3d.size()<<std::endl;
-	std::cout<<"desc:"<<descriptors.size()<<std::endl;
-	float2int_descriptors();
-	std::cout<<"int desc:"<<descriptors_converted.size()<<std::endl;
 	//computeWindowBRIEFPoint();
-	//computeBRIEFPoint();
+	extractSuperPoints();
+	computeWindowPoints();
+	draw();
 	if(!DEBUG_IMAGE)
 		image.release();
 }
@@ -73,6 +73,75 @@ KeyFrameSP::KeyFrameSP(double _time_stamp, int _index, Vector3d &_vio_T_w_i, Mat
 	sequence = 0;
 	keypoints = _keypoints;
 	keypoints_norm = _keypoints_norm;
+}
+void KeyFrameSP::extractSuperPoints(){
+	bool dec = sp_detector->detect(image, keypoints, descriptors, 10000);
+	binarize_descriptors();
+	std::cout<<"int desc:"<<descriptors_converted.size()<<std::endl;
+}
+void KeyFrameSP::draw(){
+	cv::hconcat(image, image, compareKpts);
+	cv::cvtColor(compareKpts, compareKpts, cv::COLOR_GRAY2RGB);
+	for (size_t i = 0; i < point_2d_uv.size(); i++)
+	{
+		cv::Point2f Pt = point_2d_uv[i];
+		cv::circle(compareKpts, Pt, 2, cv::Scalar(0, 255, 0), 2);
+	}
+	for (size_t i = 0; i < keypoints.size(); i++)
+	{
+		cv::Point2f Pt = keypoints[i].pt;
+		Pt.x += 752;
+		cv::circle(compareKpts, Pt, 2, cv::Scalar(0, 255, 0), 2);
+	}
+	for (size_t i = 0; i < window_keypoints.size(); i++)
+	{
+		cv::Point2f Pt = window_keypoints[i].pt;
+		cv::circle(compareKpts, Pt, 6, cv::Scalar(0, 0, 255), 2); 
+		//void cv::circle (InputOutputArray img, Point center, int radius, const Scalar &color, int thickness=1, int lineType=LINE_8, int shift=0)
+	}
+	
+}
+
+void KeyFrameSP::computeWindowPoints(){
+	std::cout<<"point_2d_uv size:"<<point_2d_uv.size()<<std::endl;
+	std::cout<<"keypoints size:"<<keypoints.size()<<std::endl;
+	cv::Mat mask1 = cv::Mat::zeros(img_size, CV_32FC1);
+  	cv::Mat mask2 = cv::Mat::zeros(img_size, CV_32FC1);
+	//float max_p2d_x = 0;
+	//float max_kp_x = 0;
+	int range = 5;
+	for(size_t i=0; i<point_2d_uv.size(); i++){
+		for(int k=-range;k<range;k++){
+			for(int m=-range;m<range;m++){
+				if((int(point_2d_uv[i].y)+k)<(mask1.rows-2) && (int(point_2d_uv[i].x)+m)<(mask1.cols-2)
+				   && (int(point_2d_uv[i].y)+k)>2 && (int(point_2d_uv[i].x)+m)>2 )
+					mask1.at<float>(int(point_2d_uv[i].y)+k, int(point_2d_uv[i].x)+m) = 1.0;
+			}
+		}
+		//if(point_2d_uv[i].x > max_p2d_x)
+		//	max_p2d_x = point_2d_uv[i].x;
+	}
+	//std::cout<<"max 2d:"<<max_p2d_x<<std::endl;
+	for(size_t i=0; i<keypoints.size(); i++){
+		mask2.at<float>(int(keypoints[i].pt.y), int(keypoints[i].pt.x)) = keypoints[i].response;
+		//if(keypoints[i].pt.x > max_kp_x)
+			//max_kp_x = keypoints[i].pt.x;
+	}
+	//std::cout<<"max kp:"<<max_kp_x<<std::endl;
+	cv::Mat mask12=mask1.mul(mask2);
+	for(int i = 0; i < mask12.rows; i++){
+		for(int j = 0; j < mask12.cols; j++){
+			if(mask12.at<float>(i, j)>0)
+				window_keypoints.push_back(cv::KeyPoint(j,i,8,-1,mask12.at<float>(i, j)));
+		}
+	}
+	std::cout<<"window_keypoints size:"<<window_keypoints.size()<<std::endl;
+}
+void KeyFrameSP::binarize_descriptors(){
+	descriptors_converted = cv::Mat(descriptors.size(), 5);
+	for(size_t i=0; i<descriptors.rows; ++i){
+		cv::threshold(descriptors.row(i), descriptors_converted.row(i), 0, 1, cv::THRESH_BINARY);
+	}
 }
 
 void KeyFrameSP::float2int_descriptors(){

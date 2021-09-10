@@ -201,7 +201,7 @@ map<int, vector<pair<int, Eigen::Matrix<double, 7, 1>>>> FeatureTracker::trackIm
                 n_pts.clear();
                 descriptors = cv::Mat();
                 bool detected = detector->detect(cur_img, mask, n_pts, descriptors, MAX_CNT - cur_pts.size());
-                printf("n_pts size %d\n", (int)n_pts.size());
+                //printf("n_pts size %d\n", (int)n_pts.size());
                 //std::cout<<"descriptors.size()"<<descriptors<<std::endl;
             }
             else{
@@ -218,7 +218,7 @@ map<int, vector<pair<int, Eigen::Matrix<double, 7, 1>>>> FeatureTracker::trackIm
             int new_id = n_id++;
             ids.push_back(new_id);
             track_cnt.push_back(1);
-            descriptors_per_feature_id[new_id]=descriptors.row(i);
+            //descriptors_per_feature_id[new_id]=descriptors.row(i);
         }
       //  printf("cur_pts size %d\n", (int)cur_pts.size());
        // printf("feature cnt after add %d\n", (int)ids.size());

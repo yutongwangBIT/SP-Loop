@@ -347,9 +347,10 @@ int PoseGraph::detectLoop(KeyFrame* keyframe, int frame_index)
     //first query; then add this frame into database!
     QueryResults ret;
     TicToc t_query;
-    db.query(keyframe->brief_descriptors, ret, 4, frame_index - 50);
+    db.query(keyframe->brief_descriptors, ret, 4, frame_index - 50); 
+    //query(const std::vector<TDescriptor> &features, QueryResults &ret, int max_results = 1, int max_id = -1)
     //printf("query time: %f", t_query.toc());
-    //cout << "Searching for Image " << frame_index << ". " << ret << endl;
+    cout << "Searching for Image " << frame_index << ". " << ret << endl;
 
     TicToc t_add;
     db.add(keyframe->brief_descriptors);
@@ -365,15 +366,27 @@ int PoseGraph::detectLoop(KeyFrame* keyframe, int frame_index)
     }
     // visual loop result 
     if (DEBUG_IMAGE)
-    {
-        for (unsigned int i = 0; i < ret.size(); i++)
+    {   
+        if (ret.size() > 1){
+            QueryResults::const_iterator rit;
+            rit = ret.begin()+1;
+            //if(rit->Score > 0.02){
+                int tmp_index = rit->Id;
+                std::cout<<"tmp_ind:"<<tmp_index<<std::endl;
+                auto it = image_pool.find(tmp_index);
+                cv::Mat tmp_image = (it->second).clone();
+                putText(tmp_image, "index:  " + to_string(tmp_index) + "loop score:" + to_string(rit->Score), cv::Point2f(10, 50), cv::FONT_HERSHEY_SIMPLEX, 0.5, cv::Scalar(255));
+                cv::hconcat(loop_result, tmp_image, loop_result);
+            //}
+        }
+        /*for (unsigned int i = 0; i < ret.size(); i++)
         {
             int tmp_index = ret[i].Id;
             auto it = image_pool.find(tmp_index);
             cv::Mat tmp_image = (it->second).clone();
             putText(tmp_image, "index:  " + to_string(tmp_index) + "loop score:" + to_string(ret[i].Score), cv::Point2f(10, 50), cv::FONT_HERSHEY_SIMPLEX, 0.5, cv::Scalar(255));
             cv::hconcat(loop_result, tmp_image, loop_result);
-        }
+        }*/
     }
     // a good match with its nerghbour
     if (ret.size() >= 1 &&ret[0].Score > 0.05)
@@ -394,13 +407,13 @@ int PoseGraph::detectLoop(KeyFrame* keyframe, int frame_index)
             }
 
         }
-/*
+
     if (DEBUG_IMAGE)
     {
         cv::imshow("loop_result", loop_result);
         cv::waitKey(20);
     }
-*/
+
     if (find_loop && frame_index > 50)
     {
         int min_index = -1;

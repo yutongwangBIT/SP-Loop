@@ -134,7 +134,7 @@ bool SPDetector::detect(cv::Mat img, cv::Mat pts_mask, std::vector<cv::Point2f>&
     cv::Mat img_re, pts_mask_re;
     cv::resize(img, img_re, cv::Size(640, 480), cv::INTER_AREA);
     cv::resize(pts_mask, pts_mask_re, cv::Size(640, 480), cv::INTER_NEAREST);
-    auto input = torch::from_blob(img.clone().data, {1, 1, img.rows, img.cols}, torch::kByte);
+    auto input = torch::from_blob(img_re.clone().data, {1, 1, img_re.rows, img_re.cols}, torch::kByte);
     
     input = input.to(torch::kFloat) / 255;
     torch::Device device(device_type);
@@ -151,8 +151,8 @@ bool SPDetector::detect(cv::Mat img, cv::Mat pts_mask, std::vector<cv::Point2f>&
     torch::Tensor mProb = out[0].squeeze(0);  // [H, W] # squeeze(0) leaves the tensor unchanged
     torch::Tensor mDesc = out[1];
     
-    TicToc t_2;
-    auto mask_input = torch::from_blob(pts_mask.clone().data, { pts_mask.rows, pts_mask.cols}, torch::kU8);
+    //TicToc t_2;
+    auto mask_input = torch::from_blob(pts_mask_re.clone().data, { pts_mask_re.rows, pts_mask_re.cols}, torch::kU8);
     mask_input = mask_input.to(device);
     auto zeros = torch::zeros_like(mProb);
     mProb = torch::where(mask_input==255, mProb, zeros);
@@ -162,7 +162,9 @@ bool SPDetector::detect(cv::Mat img, cv::Mat pts_mask, std::vector<cv::Point2f>&
     //std::cout<<"kpts size :"<<kpts.size(0)<<std::endl;
     auto mask_score = torch::ge(mProb,conf_thresh);
     auto scores = torch::masked_select(mProb, mask_score);
-    std::cout<<"score size:"<<scores.size(0)<<std::endl;
+    //std::cout<<"score size:"<<scores.size(0)<<std::endl;
+    if(scores.size(0)==0)
+        return false;
     auto num_pts = std::min(c_num_pts, int(scores.size(0)));
     auto top = scores.topk(num_pts);
     auto top_values = std::get<0>(top);
@@ -173,10 +175,10 @@ bool SPDetector::detect(cv::Mat img, cv::Mat pts_mask, std::vector<cv::Point2f>&
     grid[0][0].slice(1, 0, 1) = 2.0 * kpts.slice(1, 1, 2) / mProb.size(1) - 1;  // x
     grid[0][0].slice(1, 1, 2) = 2.0 * kpts.slice(1, 0, 1) / mProb.size(0) - 1;  // y
     //printf("2 time %f\n", t_2.toc());
-    TicToc t_3;
+    //TicToc t_3;
     auto desc = torch::grid_sampler(mDesc, grid.to(device), 0, 0, true);  // [1, 256, 1, n_keypoints]
     //printf("3 time %f\n", t_3.toc());
-    TicToc t_4;
+    //TicToc t_4;
     desc = desc.squeeze(0).squeeze(1);  // [256, n_keypoints] Returns a tensor with all the dimensions of input of size 1 removed
     // normalize to 1
     auto dn = torch::norm(desc, 2, 1);
@@ -184,17 +186,17 @@ bool SPDetector::detect(cv::Mat img, cv::Mat pts_mask, std::vector<cv::Point2f>&
     desc = desc.transpose(0, 1).contiguous();  // [n_keypoints, 256]
     desc = desc.to(torch::kCPU);
     //printf("4 time %f\n", t_4.toc());
-    TicToc t_5;
+    //TicToc t_5;
     cv::Mat desc_mat(cv::Size(desc.size(1), desc.size(0)), CV_32FC1, desc.data_ptr());
     cv::Mat descriptors_whole = desc_mat.clone();
     //printf("5 time %f\n", t_5.toc());
-    TicToc t_6;
+    //TicToc t_6;
     //std::cout<<"top_index size :"<<top_index.size(0)<<std::endl;
     for(auto i=0; i<top_index.size(0); ++i){
         int index = top_index[i].item<int>();
         //std::cout<<"index :"<<index<<std::endl;
-        float x = std::round(kpts[index][1].item<float>()*(img.rows/480));
-        float y = std::round(kpts[index][0].item<float>()*(img.cols/640));
+        float x = std::floor(kpts[index][1].item<float>()*(img.cols/(float(img_re.cols))));
+        float y = std::floor(kpts[index][0].item<float>()*(img.rows/(float(img_re.rows))));
         pts.push_back(cv::Point2f(x, y));
         descriptors.push_back(descriptors_whole.row(index)); //WRONG?
     }

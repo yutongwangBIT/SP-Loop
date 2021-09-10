@@ -47,7 +47,7 @@ void registerPub(ros::NodeHandle &n)
     pub_keyframe_point = n.advertise<sensor_msgs::PointCloud>("keyframe_point", 1000);
     pub_extrinsic = n.advertise<nav_msgs::Odometry>("extrinsic", 1000);
     pub_image_track = n.advertise<sensor_msgs::Image>("image_track", 1000);
-    pub_features = n.advertise<vins::features>("features", 1000);
+    pub_features = n.advertise<vins_estimator::features>("features", 1000);
 
     cameraposevisual.setScale(0.1);
     cameraposevisual.setLineWidth(0.01);
@@ -417,13 +417,13 @@ void pubKeyframe(const Estimator &estimator)
         }
         pub_keyframe_point.publish(point_cloud);
 
-        vins::features features_for_pub;
+    /*    vins_estimator::features features_for_pub;
         features_for_pub.header.stamp = ros::Time(estimator.Headers[WINDOW_SIZE - 2]);
         features_for_pub.header.frame_id = "world";
         
         for (auto &it_per_id : estimator.f_manager.feature)
         {
-            vins::featurePerId f_per_id;
+            vins_estimator::featurePerId f_per_id;
             f_per_id.mFeatureId = it_per_id.feature_id;
             int frame_size = it_per_id.feature_per_frame.size(); //1-10
             if(it_per_id.start_frame < WINDOW_SIZE - 2 && it_per_id.start_frame + frame_size - 1 >= WINDOW_SIZE - 2 && it_per_id.solve_flag == 1)
@@ -446,9 +446,9 @@ void pubKeyframe(const Estimator &estimator)
             else
                 continue;
             cv::Mat mat = it_per_id.descriptors;
-            Utility::CvMatToMsgArrayFixedSize<vins::featurePerId::_mDescriptor_type,float>(mat,f_per_id.mDescriptor);
+            Utility::CvMatToMsgArrayFixedSize<vins_estimator::featurePerId::_mDescriptor_type,float>(mat,f_per_id.mDescriptor);
             features_for_pub.features.push_back(f_per_id);
         }
-        pub_features.publish(features_for_pub);
+        pub_features.publish(features_for_pub);*/
     }
 }

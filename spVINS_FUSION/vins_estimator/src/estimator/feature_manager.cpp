@@ -94,14 +94,14 @@ bool FeatureManager::addFeatureCheckParallax(int frame_count, const map<int, vec
    /* for(auto &it:mdescs){
         std::cout<<it.first<<std::endl;
     }*/
-    for (auto &it_per_id : feature){
+/*    for (auto &it_per_id : feature){
         int id = it_per_id.feature_id;
         auto it_desc = mdescs.find(id);
         if(it_desc != mdescs.end()){
             it_per_id.descriptors = mdescs[id];
            // std::cout<<"get desc for feature:"<<id<<std::endl;
         }
-    }
+    }*/
 
     //if (frame_count < 2 || last_track_num < 20)
     //if (frame_count < 2 || last_track_num < 20 || new_feature_num > 0.5 * last_track_num)

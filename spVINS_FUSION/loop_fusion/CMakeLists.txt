@@ -13,7 +13,7 @@ find_package(catkin REQUIRED COMPONENTS
     camera_models
     cv_bridge
     roslib
-    vins
+    #vins_estimator
     )
 
 find_package(OpenCV 3.0)
@@ -21,8 +21,15 @@ if(NOT OpenCV_FOUND)
  message(FATAL_ERROR "OpenCV > 3.0 not found.")
 endif()
 
-
 find_package(Ceres REQUIRED)
+
+set(Torch_DIR "/home/yutong/Downloads/libtorch/share/cmake/Torch")
+find_package(Torch REQUIRED)
+message(STATUS "Torch version is: ${Torch_VERSION}")
+
+#include_directories("/home/yutong/Downloads/libtorch/include")
+#include_directories("/home/yutong/Downloads/libtorch/include/torch/csrc/api/include")
+#include_directories("/usr/local/cuda-10.1/targets/x86_64-linux/include")
 
 set(CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake)
 find_package(Eigen3)
@@ -53,6 +60,7 @@ add_executable(sp_loop_fusion_node
     src/sp_pose_graph_node.cpp
     src/sp_pose_graph.cpp
     src/keyframe_sp.cpp
+    src/SuperGlue.cpp
     src/utility/CameraPoseVisualization.cpp
     src/ThirdParty/DUtils/Random.cpp
     src/ThirdParty/DUtils/Timestamp.cpp
@@ -66,4 +74,4 @@ add_executable(sp_loop_fusion_node
 	src/ThirdParty/DBoW3/quicklz.c
 )
 
-target_link_libraries(sp_loop_fusion_node ${catkin_LIBRARIES}  ${OpenCV_LIBS} ${CERES_LIBRARIES}) 
+target_link_libraries(sp_loop_fusion_node ${catkin_LIBRARIES} ${OpenCV_LIBS} ${CERES_LIBRARIES} ${TORCH_LIBRARIES}) 

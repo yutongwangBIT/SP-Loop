@@ -163,16 +163,16 @@ void Estimator::inputImage(double t, const cv::Mat &_img, const cv::Mat &_img1)
     map<int, vector<pair<int, Eigen::Matrix<double, 7, 1>>>> featureFrame;
     TicToc featureTrackerTime;
 
-   /* if(_img1.empty())
+    if(_img1.empty())
         featureFrame = featureTracker.trackImage(t, _img);
     else
-        featureFrame = featureTracker.trackImage(t, _img, _img1);*/
+        featureFrame = featureTracker.trackImage(t, _img, _img1);
 
-    map<int,cv::Mat> descriptors_per_feature_id;
+  /*  map<int,cv::Mat> descriptors_per_feature_id;
     if(_img1.empty())
         featureFrame = featureTracker.trackImage(t, descriptors_per_feature_id, _img);
     else
-        featureFrame = featureTracker.trackImage(t, descriptors_per_feature_id, _img, _img1);
+        featureFrame = featureTracker.trackImage(t, descriptors_per_feature_id, _img, _img1);*/
     //printf("featureTracker time: %f\n", featureTrackerTime.toc());
     
     if (SHOW_TRACK)
@@ -187,7 +187,7 @@ void Estimator::inputImage(double t, const cv::Mat &_img, const cv::Mat &_img1)
        // {
             mBuf.lock();
             featureBuf.push(make_pair(t, featureFrame));
-            descBuf.push(descriptors_per_feature_id);
+           // descBuf.push(descriptors_per_feature_id);
             mBuf.unlock();
        // }
     }
@@ -195,11 +195,11 @@ void Estimator::inputImage(double t, const cv::Mat &_img, const cv::Mat &_img1)
     {
         mBuf.lock();
         featureBuf.push(make_pair(t, featureFrame));
-        descBuf.push(descriptors_per_feature_id);
+        //descBuf.push(descriptors_per_feature_id);
         mBuf.unlock();
         TicToc processTime;
         processMeasurements();
-        printf("process time: %f\n", processTime.toc());
+        //printf("process time: %f\n", processTime.toc());
     }
     
 }
@@ -286,7 +286,7 @@ void Estimator::processMeasurements()
         if(!featureBuf.empty())
         {
             feature = featureBuf.front();
-            mDesc = descBuf.front();
+          //  mDesc = descBuf.front();
             curTime = feature.first + td;
             while(1)
             {
@@ -306,7 +306,7 @@ void Estimator::processMeasurements()
                 getIMUInterval(prevTime, curTime, accVector, gyrVector);
 
             featureBuf.pop();
-            descBuf.pop();
+           // descBuf.pop();
             mBuf.unlock();
 
             if(USE_IMU)

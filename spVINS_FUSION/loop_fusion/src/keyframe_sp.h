@@ -1,5 +1,3 @@
-
-
 #pragma once
 
 #include <vector>
@@ -13,6 +11,7 @@
 #include "utility/utility.h"
 #include "parameters.h"
 #include "ThirdParty/DBoW3/DBoW3.h"
+#include "SuperGlue.h"
 
 #define MIN_LOOP_NUM 25
 
@@ -24,7 +23,7 @@ class KeyFrameSP
 public:
 	KeyFrameSP(double _time_stamp, int _index, Vector3d &_vio_T_w_i, Matrix3d &_vio_R_w_i, cv::Mat &_image,
 			 vector<cv::Point3f> &_point_3d, vector<cv::Point2f> &_point_2d_uv, vector<cv::Point2f> &_point_2d_normal, 
-			 vector<double> &_point_id, cv::Mat &_descriptors, int _sequence);
+			 vector<double> &_point_id, SPDetector* _sp, SPGlue* _sp_glue, int _sequence);
 	KeyFrameSP(double _time_stamp, int _index, Vector3d &_vio_T_w_i, Matrix3d &_vio_R_w_i, Vector3d &_T_w_i, Matrix3d &_R_w_i,
 			 cv::Mat &_image, int _loop_index, Eigen::Matrix<double, 8, 1 > &_loop_info,
 			 vector<cv::KeyPoint> &_keypoints, vector<cv::KeyPoint> &_keypoints_norm, cv::Mat &_descriptors);
@@ -35,12 +34,16 @@ public:
 	void updatePose(const Eigen::Vector3d &_T_w_i, const Eigen::Matrix3d &_R_w_i);
 	void updateVioPose(const Eigen::Vector3d &_T_w_i, const Eigen::Matrix3d &_R_w_i);
 
+	void extractSuperPoints();
+	void computeWindowPoints();
+
 	Eigen::Vector3d getLoopRelativeT();
 	double getLoopRelativeYaw();
 	Eigen::Quaterniond getLoopRelativeQ();
 
 	void float2int_descriptors();
-	
+	void binarize_descriptors();
+
 	double time_stamp; 
 	int index;
 	int local_index;
@@ -67,6 +70,13 @@ public:
 	bool has_loop;
 	int loop_index;
 	Eigen::Matrix<double, 8, 1 > loop_info;
-	
+
+	//visualization
+	cv::Mat compareKpts;
+private:
+	SPGlue* sp_glue;
+	SPDetector* sp_detector;
+	cv::Size img_size;
+	void draw();
 };
 

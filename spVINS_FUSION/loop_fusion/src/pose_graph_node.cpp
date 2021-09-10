@@ -32,8 +32,6 @@
 #include "pose_graph.h"
 #include "utility/CameraPoseVisualization.h"
 #include "parameters.h"
-#include <vins/features.h>
-#include <vins/featurePerId.h>
 #define SKIP_FIRST_CNT 10
 using namespace std;
 
@@ -41,7 +39,6 @@ queue<sensor_msgs::ImageConstPtr> image_buf;
 queue<sensor_msgs::PointCloudConstPtr> point_buf;
 queue<nav_msgs::Odometry::ConstPtr> pose_buf;
 queue<Eigen::Vector3d> odometry_buf;
-queue<vins::features::ConstPtr> features_buf;
 std::mutex m_buf;
 std::mutex m_process;
 int frame_index  = 0;
@@ -75,6 +72,7 @@ Eigen::Vector3d last_t(-100, -100, -100);
 double last_image_time = -1;
 
 ros::Publisher pub_point_cloud, pub_margin_cloud;
+
 
 void new_sequence()
 {
@@ -191,12 +189,7 @@ void pose_callback(const nav_msgs::Odometry::ConstPtr &pose_msg)
                                                        pose_msg->pose.pose.orientation.z);
     */
 }
-void feature_callback(const vins::features::ConstPtr &feature_msg)
-{
-    m_buf.lock();
-    features_buf.push(feature_msg);
-    m_buf.unlock();
-}
+
 
 void vio_callback(const nav_msgs::Odometry::ConstPtr &pose_msg)
 {
@@ -297,7 +290,7 @@ void process()
         {
             //printf(" pose time %f \n", pose_msg->header.stamp.toSec());
             //printf(" point time %f \n", point_msg->header.stamp.toSec());
-            //printf(" image time %f \n", image_msg->header.stamp.toSec());
+            printf(" image time %f \n", image_msg->header.stamp.toSec());
             // skip fisrt few
             if (skip_first_cnt < SKIP_FIRST_CNT)
             {
@@ -371,6 +364,7 @@ void process()
 
                 KeyFrame* keyframe = new KeyFrame(pose_msg->header.stamp.toSec(), frame_index, T, R, image,
                                    point_3d, point_2d_uv, point_2d_normal, point_id, sequence);   
+                
                 m_process.lock();
                 start_flag = 1;
                 posegraph.addKeyFrame(keyframe, 1);
@@ -405,6 +399,8 @@ void command()
         std::this_thread::sleep_for(dura);
     }
 }
+
+
 
 int main(int argc, char **argv)
 {
@@ -493,13 +489,14 @@ int main(int argc, char **argv)
     ros::Subscriber sub_extrinsic = n.subscribe("/vins_estimator/extrinsic", 2000, extrinsic_callback);
     ros::Subscriber sub_point = n.subscribe("/vins_estimator/keyframe_point", 2000, point_callback);
     ros::Subscriber sub_margin_point = n.subscribe("/vins_estimator/margin_cloud", 2000, margin_point_callback);
-    ros::Subscriber sub_feature = n.subscribe("/vins_estimator/features", 2000, feature_callback);
+
 
     pub_match_img = n.advertise<sensor_msgs::Image>("match_image", 1000);
     pub_camera_pose_visual = n.advertise<visualization_msgs::MarkerArray>("camera_pose_visual", 1000);
     pub_point_cloud = n.advertise<sensor_msgs::PointCloud>("point_cloud_loop_rect", 1000);
     pub_margin_cloud = n.advertise<sensor_msgs::PointCloud>("margin_cloud_loop_rect", 1000);
     pub_odometry_rect = n.advertise<nav_msgs::Odometry>("odometry_rect", 1000);
+    
 
     std::thread measurement_process;
     std::thread keyboard_command_process;

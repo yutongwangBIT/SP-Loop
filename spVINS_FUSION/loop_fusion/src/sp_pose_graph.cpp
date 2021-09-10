@@ -287,15 +287,28 @@ int PoseGraphSP::detectLoop(KeyFrameSP* keyframe, int frame_index)
     }
     // visual loop result 
     if (DEBUG_IMAGE)
-    {
-        for (unsigned int i = 0; i < ret.size(); i++)
+    {   
+        if(!ret.empty()){
+            DBoW3::QueryResults::const_iterator rit;
+            rit = ret.begin();
+            //if(rit->Score > 0.07){
+                int tmp_index = rit->Id;
+                std::cout<<"tmp_ind:"<<tmp_index<<std::endl;
+                auto it = image_pool.find(tmp_index);
+                cv::Mat tmp_image = (it->second).clone();
+                putText(tmp_image, "index:  " + to_string(tmp_index) + "loop score:" + to_string(rit->Score), cv::Point2f(10, 50), cv::FONT_HERSHEY_SIMPLEX, 0.5, cv::Scalar(255));
+                cv::hconcat(loop_result, tmp_image, loop_result);
+            //}
+        }
+        
+       /* for (unsigned int i = 0; i < ret.size(); i++)
         {
             int tmp_index = ret[i].Id;
             auto it = image_pool.find(tmp_index);
             cv::Mat tmp_image = (it->second).clone();
             putText(tmp_image, "index:  " + to_string(tmp_index) + "loop score:" + to_string(ret[i].Score), cv::Point2f(10, 50), cv::FONT_HERSHEY_SIMPLEX, 0.5, cv::Scalar(255));
             cv::hconcat(loop_result, tmp_image, loop_result);
-        }
+        }*/
     }
     // a good match with its nerghbour
     if (ret.size() >= 1 &&ret[0].Score > 0.05)

@@ -23,9 +23,11 @@
 #include "utility/tic_toc.h"
 #include "utility/CameraPoseVisualization.h"
 #include "parameters.h"
-#include <vins/features.h>
-#include <vins/featurePerId.h>
+//#include <vins_estimator/features.h>
+//#include <vins_estimator/featurePerId.h>
 #include "utility/utility.h"
+#include "SuperGlue.h"
+//#include "vins_estimator/SuperPoint.h"
 #define SKIP_FIRST_CNT 10
 using namespace std;
 
@@ -33,7 +35,7 @@ queue<sensor_msgs::ImageConstPtr> image_buf;
 queue<sensor_msgs::PointCloudConstPtr> point_buf;
 queue<nav_msgs::Odometry::ConstPtr> pose_buf;
 queue<Eigen::Vector3d> odometry_buf;
-queue<vins::features::ConstPtr> features_buf;
+//queue<vins_estimator::features::ConstPtr> features_buf;
 std::mutex m_buf;
 std::mutex m_process;
 int frame_index  = 0;
@@ -62,12 +64,22 @@ ros::Publisher pub_odometry_rect;
 std::string BRIEF_PATTERN_FILE;
 std::string POSE_GRAPH_SAVE_PATH;
 std::string VINS_RESULT_PATH;
+
+int USE_SP;
+std::string SP_PATH;
+std::string SPGLUE_PATH;
+float SP_THRES;
+int SP_NMS_DIST;
+SPDetector* sp;
+SPGlue* sp_glue;
+
 CameraPoseVisualization cameraposevisual(1, 0, 0, 1);
 Eigen::Vector3d last_t(-100, -100, -100);
 double last_image_time = -1;
 
 ros::Publisher pub_point_cloud, pub_margin_cloud;
 ros::Publisher pub_features;
+ros::Publisher pub_compare_kpts;
 
 void new_sequence()
 {
@@ -184,7 +196,7 @@ void pose_callback(const nav_msgs::Odometry::ConstPtr &pose_msg)
                                                        pose_msg->pose.pose.orientation.z);
     */
 }
-void feature_callback(const vins::features::ConstPtr &feature_msg)
+/*void feature_callback(const vins_estimator::features::ConstPtr &feature_msg)
 {
     m_buf.lock();
     features_buf.push(feature_msg);
@@ -206,7 +218,7 @@ void feature_callback(const vins::features::ConstPtr &feature_msg)
         point_cloud.points.push_back(p);
     }
     pub_features.publish(point_cloud);
-}
+}*/
 
 void vio_callback(const nav_msgs::Odometry::ConstPtr &pose_msg)
 {
@@ -261,6 +273,12 @@ void extrinsic_callback(const nav_msgs::Odometry::ConstPtr &pose_msg)
     m_process.unlock();
 }
 
+void pubCompImage(const cv::Mat &imgComp, std_msgs::Header header)
+{
+    sensor_msgs::ImagePtr imgCompMsg = cv_bridge::CvImage(header, "bgr8", imgComp).toImageMsg();
+    pub_compare_kpts.publish(imgCompMsg);
+}
+
 void process()
 {
     while (true)
@@ -268,11 +286,10 @@ void process()
         sensor_msgs::ImageConstPtr image_msg = NULL;
         sensor_msgs::PointCloudConstPtr point_msg = NULL;
         nav_msgs::Odometry::ConstPtr pose_msg = NULL;
-        vins::features::ConstPtr feature_msg = NULL;
 
         // find out the messages with same time stamp
         m_buf.lock();
-        if(!image_buf.empty() && !point_buf.empty() && !pose_buf.empty() && !features_buf.empty())
+        if(!image_buf.empty() && !point_buf.empty() && !pose_buf.empty())
         {
             if (image_buf.front()->header.stamp.toSec() > pose_buf.front()->header.stamp.toSec())
             {
@@ -284,14 +301,8 @@ void process()
                 point_buf.pop();
                 printf("throw point at beginning\n");
             }
-            else if (image_buf.front()->header.stamp.toSec() > features_buf.front()->header.stamp.toSec())
-            {
-                features_buf.pop();
-                printf("throw features at beginning\n");
-            }
             else if (image_buf.back()->header.stamp.toSec() >= pose_buf.front()->header.stamp.toSec() 
-                && point_buf.back()->header.stamp.toSec() >= pose_buf.front()->header.stamp.toSec()
-                && features_buf.back()->header.stamp.toSec() >= pose_buf.front()->header.stamp.toSec())
+                && point_buf.back()->header.stamp.toSec() >= pose_buf.front()->header.stamp.toSec())
             {
                 pose_msg = pose_buf.front();
                 pose_buf.pop();
@@ -306,20 +317,15 @@ void process()
                     point_buf.pop();
                 point_msg = point_buf.front();
                 point_buf.pop();
-
-                while (features_buf.front()->header.stamp.toSec() < pose_msg->header.stamp.toSec())
-                    features_buf.pop();
-                feature_msg = features_buf.front();
-                features_buf.pop();
             }
         }
         m_buf.unlock();
 
-        if (pose_msg != NULL && feature_msg != NULL)
+        if (pose_msg != NULL)
         {
             //printf(" pose time %f \n", pose_msg->header.stamp.toSec());
             //printf(" point time %f \n", point_msg->header.stamp.toSec());
-            //printf(" image time %f \n", image_msg->header.stamp.toSec());
+            printf(" image time %f \n", image_msg->header.stamp.toSec());
             // skip fisrt few
             if (skip_first_cnt < SKIP_FIRST_CNT)
             {
@@ -364,46 +370,40 @@ void process()
                                      pose_msg->pose.pose.orientation.z).toRotationMatrix();
             if((T - last_t).norm() > SKIP_DIS)
             {
-                vector<cv::Point3f> point_3d_sp; 
-                vector<cv::Point2f> point_2d_uv_sp; 
-                vector<cv::Point2f> point_2d_normal_sp;
-                vector<double> point_id_sp;
-                //vector<cv::Mat> descriptors;
-                cv::Mat descriptors = cv::Mat(cv::Size(256, feature_msg->features.size()), 5); //CV_32FC1
-                std::cout<<"descriptors sizes:"<<descriptors.size()<<std::endl;
-                for (unsigned int i = 0; i < feature_msg->features.size(); i++)
+                vector<cv::Point3f> point_3d; 
+                vector<cv::Point2f> point_2d_uv; 
+                vector<cv::Point2f> point_2d_normal;
+                vector<double> point_id;
+
+                for (unsigned int i = 0; i < point_msg->points.size(); i++)
                 {
                     cv::Point3f p_3d;
-                    p_3d.x = feature_msg->features[i].mWorldPos[0];
-                    p_3d.y = feature_msg->features[i].mWorldPos[1];
-                    p_3d.z = feature_msg->features[i].mWorldPos[2];
-                    point_3d_sp.push_back(p_3d);
+                    p_3d.x = point_msg->points[i].x;
+                    p_3d.y = point_msg->points[i].y;
+                    p_3d.z = point_msg->points[i].z;
+                    point_3d.push_back(p_3d);
 
-                    cv::Point2f p_2d_uv_sp, p_2d_normal_sp;
+                    cv::Point2f p_2d_uv, p_2d_normal;
                     double p_id;
-                    p_2d_normal_sp.x = feature_msg->features[i].mPoint[0];
-                    p_2d_normal_sp.y = feature_msg->features[i].mPoint[1];
-                    p_2d_uv_sp.x = feature_msg->features[i].mUV[0];
-                    p_2d_uv_sp.y = feature_msg->features[i].mUV[1];
-                    p_id = feature_msg->features[i].mFeatureId;
-                    point_2d_normal_sp.push_back(p_2d_normal_sp);
-                    point_2d_uv_sp.push_back(p_2d_uv_sp);
-                    point_id_sp.push_back(p_id);
-                    cv::Mat desc(1,256,5);
-                    vins::featurePerId f_per_id = feature_msg->features[i];
-                    Utility::MsgArrayFixedSizeToCvMat<vins::featurePerId::_mDescriptor_type,float>(desc, f_per_id.mDescriptor);
-                    //std::cout<<"desc size:"<<desc.size()<<std::endl;
-                    descriptors.row(i) = desc;
+                    p_2d_normal.x = point_msg->channels[i].values[0];
+                    p_2d_normal.y = point_msg->channels[i].values[1];
+                    p_2d_uv.x = point_msg->channels[i].values[2];
+                    p_2d_uv.y = point_msg->channels[i].values[3];
+                    p_id = point_msg->channels[i].values[4];
+                    point_2d_normal.push_back(p_2d_normal);
+                    point_2d_uv.push_back(p_2d_uv);
+                    point_id.push_back(p_id);
+
                     //printf("u %f, v %f \n", p_2d_uv.x, p_2d_uv.y);
                 }
-                
-                KeyFrameSP* keyframe_sp = new KeyFrameSP(pose_msg->header.stamp.toSec(), frame_index, T, R, image,
-                                   point_3d_sp, point_2d_uv_sp, point_2d_normal_sp, point_id_sp, descriptors, sequence);
-                //std::cout<<"kf inied"<<std::endl;
+    
+                KeyFrameSP* keyframe = new KeyFrameSP(pose_msg->header.stamp.toSec(), frame_index, T, R, image,
+                                   point_3d, point_2d_uv, point_2d_normal, point_id, sp, sp_glue, sequence); 
+                std_msgs::Header header = image_msg->header;
+                pubCompImage(keyframe->compareKpts, header);  
                 m_process.lock();
                 start_flag = 1;
-                //std::cout<<"addKeyFrameSP"<<std::endl;
-                posegraph_sp.addKeyFrameSP(keyframe_sp, 1);
+                posegraph_sp.addKeyFrameSP(keyframe, 1);
                 m_process.unlock();
                 frame_index++;
                 last_t = T;
@@ -413,6 +413,7 @@ void process()
         std::this_thread::sleep_for(dura);
     }
 }
+
 
 void command()
 {
@@ -441,7 +442,7 @@ int main(int argc, char **argv)
     ros::init(argc, argv, "loop_fusion");
     ros::NodeHandle n("~");
     posegraph_sp.registerPub(n);
-    
+
     VISUALIZATION_SHIFT_X = 0;
     VISUALIZATION_SHIFT_Y = 0;
     SKIP_CNT = 0;
@@ -473,14 +474,12 @@ int main(int argc, char **argv)
     ROW = fsSettings["image_height"];
     COL = fsSettings["image_width"];
     std::string pkg_path = ros::package::getPath("loop_fusion");
-    string vocabulary_file = pkg_path + "/../support_files/voc_int_large.yml.gz";
+    string vocabulary_file = pkg_path + "/../support_files/voc_binary.yml.gz";
     cout << "vocabulary_file" << vocabulary_file << endl;
     posegraph_sp.loadVocabulary(vocabulary_file);
 
  //   BRIEF_PATTERN_FILE = pkg_path + "/../support_files/brief_pattern.yml";
   //  cout << "BRIEF_PATTERN_FILE" << BRIEF_PATTERN_FILE << endl;
-
-    
 
     int pn = config_file.find_last_of('/');
     std::string configPath = config_file.substr(0, pn);
@@ -502,6 +501,19 @@ int main(int argc, char **argv)
 
     int USE_IMU = fsSettings["imu"];
     posegraph_sp.setIMUFlag(USE_IMU);
+
+    USE_SP= fsSettings["use_superpoint"];
+    fsSettings["sp_path"] >> SP_PATH;
+    std::cout<<"sp_path:"<<SP_PATH<<std::endl;
+    fsSettings["spglue_path"] >> SPGLUE_PATH;
+    std::cout<<"spglue_path:"<<SPGLUE_PATH<<std::endl;
+    float SP_THRES = fsSettings["sp_thres_loop"];
+    int SP_NMS_DIST = fsSettings["sp_nms_dist_loop"];
+    //LOAD Models
+    sp = new SPDetector(SP_PATH, SP_NMS_DIST, SP_THRES,true);
+    sp_glue = new SPGlue(SPGLUE_PATH,true);
+    ROS_INFO("SP MODELS LOADED!");
+
     fsSettings.release();
 
     if (LOAD_PREVIOUS_POSE_GRAPH)
@@ -525,14 +537,15 @@ int main(int argc, char **argv)
     ros::Subscriber sub_extrinsic = n.subscribe("/vins_estimator/extrinsic", 2000, extrinsic_callback);
     ros::Subscriber sub_point = n.subscribe("/vins_estimator/keyframe_point", 2000, point_callback);
     ros::Subscriber sub_margin_point = n.subscribe("/vins_estimator/margin_cloud", 2000, margin_point_callback);
-    ros::Subscriber sub_feature = n.subscribe("/vins_estimator/features", 2000, feature_callback);
+   // ros::Subscriber sub_feature = n.subscribe("/vins_estimator/features", 2000, feature_callback);
 
     pub_match_img = n.advertise<sensor_msgs::Image>("match_image", 1000);
     pub_camera_pose_visual = n.advertise<visualization_msgs::MarkerArray>("camera_pose_visual", 1000);
     pub_point_cloud = n.advertise<sensor_msgs::PointCloud>("point_cloud_loop_rect", 1000);
     pub_margin_cloud = n.advertise<sensor_msgs::PointCloud>("margin_cloud_loop_rect", 1000);
     pub_odometry_rect = n.advertise<nav_msgs::Odometry>("odometry_rect", 1000);
-    pub_features = n.advertise<sensor_msgs::PointCloud>("features", 1000);
+    //pub_features = n.advertise<sensor_msgs::PointCloud>("features", 1000);
+    pub_compare_kpts = n.advertise<sensor_msgs::Image>("compare_kpts", 1000);
 
     std::thread measurement_process;
     std::thread keyboard_command_process;
