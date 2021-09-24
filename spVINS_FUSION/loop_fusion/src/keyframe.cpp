@@ -213,9 +213,12 @@ void KeyFrame::PnPRANSAC(const vector<cv::Point2f> &matched_2d_old_norm,
                          std::vector<uchar> &status,
                          Eigen::Vector3d &PnP_T_old, Eigen::Matrix3d &PnP_R_old)
 {
-	//for (int i = 0; i < matched_3d.size(); i++)
-	//	printf("3d x: %f, y: %f, z: %f\n",matched_3d[i].x, matched_3d[i].y, matched_3d[i].z );
+	/*for (int i = 0; i < matched_3d.size(); i++){
+		printf("3d x: %f, y: %f, z: %f\n",matched_3d[i].x, matched_3d[i].y, matched_3d[i].z );
+		printf("2d old x: %f, y: %f\n",matched_2d_old_norm[i].x, matched_2d_old_norm[i].y );
+	}*/
 	//printf("match size %d \n", matched_3d.size());
+	//std::cout<<qic<<std::endl;
     cv::Mat r, rvec, t, D, tmp_r;
     cv::Mat K = (cv::Mat_<double>(3, 3) << 1.0, 0, 0, 0, 1.0, 0, 0, 0, 1.0);
     Matrix3d R_inital;
@@ -259,6 +262,7 @@ void KeyFrame::PnPRANSAC(const vector<cv::Point2f> &matched_2d_old_norm,
     R_w_c_old = R_pnp.transpose();
     Vector3d T_pnp, T_w_c_old;
     cv::cv2eigen(t, T_pnp);
+	//cout << "T_pnp " << T_pnp.transpose() << endl;
     T_w_c_old = R_w_c_old * (-T_pnp);
 
     PnP_R_old = R_w_c_old * qic.transpose();
@@ -302,7 +306,7 @@ bool KeyFrame::findConnection(KeyFrame* old_kf)
 	            cv::circle(loop_match_img, old_pt, 5, cv::Scalar(0, 255, 0));
 	        }
 	        ostringstream path;
-	        path << "/home/tony-ws1/raw_data/loop_image/"
+	        path << "/home/yutong/spVINS_ws/results/match_img/vins/"
 	                << index << "-"
 	                << old_kf->index << "-" << "0raw_point.jpg";
 	        cv::imwrite( path.str().c_str(), loop_match_img);
@@ -347,7 +351,7 @@ bool KeyFrame::findConnection(KeyFrame* old_kf)
 	        }
 
 	        ostringstream path, path1, path2;
-	        path <<  "/home/tony-ws1/raw_data/loop_image/"
+	        path <<  "/home/yutong/spVINS_ws/results/match_img/vins/"
 	                << index << "-"
 	                << old_kf->index << "-" << "1descriptor_match.jpg";
 	        cv::imwrite( path.str().c_str(), loop_match_img);
@@ -418,6 +422,7 @@ bool KeyFrame::findConnection(KeyFrame* old_kf)
 	{
 		status.clear();
 	    PnPRANSAC(matched_2d_old_norm, matched_3d, status, PnP_T_old, PnP_R_old);
+		Eigen::Vector3d relative_t_old = PnP_R_old.transpose() * (old_kf->origin_vio_T - PnP_T_old);
 	    reduceVector(matched_2d_cur, status);
 	    reduceVector(matched_2d_old, status);
 	    reduceVector(matched_2d_cur_norm, status);
@@ -457,13 +462,16 @@ bool KeyFrame::findConnection(KeyFrame* old_kf)
 	            putText(notation, "previous frame: " + to_string(old_kf->index) + "  sequence: " + to_string(old_kf->sequence), cv::Point2f(20 + COL + gap, 30), cv::FONT_HERSHEY_SIMPLEX, 1, cv::Scalar(255), 3);
 	            cv::vconcat(notation, loop_match_img, loop_match_img);
 
-	            /*
-	            ostringstream path;
-	            path <<  "/home/tony-ws1/raw_data/loop_image/"
-	                    << index << "-"
-	                    << old_kf->index << "-" << "3pnp_match.jpg";
-	            cv::imwrite( path.str().c_str(), loop_match_img);
-	            */
+	            /*if ((int)matched_2d_cur.size() > MIN_LOOP_NUM)
+	            {
+					ostringstream path;
+					path <<  "/home/yutong/spVINS_ws/results/match_img/vins_loop/"
+							<< index << "-"
+							<< old_kf->index << "-" << "3pnp_match.jpg";
+					cv::imwrite( path.str().c_str(), loop_match_img);
+				}*/
+	            
+	            
 	            if ((int)matched_2d_cur.size() > MIN_LOOP_NUM)
 	            {
 	            	/*
@@ -486,8 +494,8 @@ bool KeyFrame::findConnection(KeyFrame* old_kf)
 	    relative_q = PnP_R_old.transpose() * origin_vio_R;
 	    relative_yaw = Utility::normalizeAngle(Utility::R2ypr(origin_vio_R).x() - Utility::R2ypr(PnP_R_old).x());
 	    //printf("PNP relative\n");
-	    //cout << "pnp relative_t " << relative_t.transpose() << endl;
-	    //cout << "pnp relative_yaw " << relative_yaw << endl;
+	    cout << "pnp relative_t " << relative_t.transpose() << endl;
+	    cout << "pnp relative_yaw " << relative_yaw << endl;
 	    if (abs(relative_yaw) < 30.0 && relative_t.norm() < 20.0)
 	    {
 
@@ -498,6 +506,7 @@ bool KeyFrame::findConnection(KeyFrame* old_kf)
 	    	             relative_yaw;
 	    	//cout << "pnp relative_t " << relative_t.transpose() << endl;
 	    	//cout << "pnp relative_q " << relative_q.w() << " " << relative_q.vec().transpose() << endl;
+			drawLoopMatch(old_kf,  matched_2d_old, matched_2d_cur, relative_t.norm(), abs(relative_yaw));
 	        return true;
 	    }
 	}
@@ -505,6 +514,29 @@ bool KeyFrame::findConnection(KeyFrame* old_kf)
 	return false;
 }
 
+void KeyFrame::drawLoopMatch(KeyFrame* old_kf, vector<cv::Point2f> matched_2d_old, 
+                              vector<cv::Point2f> matched_2d_cur,
+							  float rela_t, float rela_y){
+	cv::Mat image_old = old_kf->image;
+	std::vector<cv::KeyPoint> kpts_old = old_kf->keypoints;
+	cv::Mat compareKpts;
+	cv::hconcat(image, image_old, compareKpts);
+	cv::cvtColor(compareKpts, compareKpts, cv::COLOR_GRAY2RGB);
+
+	for(size_t i = 0; i < matched_2d_old.size(); i++){
+		cv::Point2f p1 = matched_2d_cur[i];
+		cv::Point2f p2 = matched_2d_old[i];
+		p2.x += 752;
+		cv::circle(compareKpts, p1, 2, cv::Scalar(0, 255, 0), 2);
+		cv::circle(compareKpts, p2, 2, cv::Scalar(0, 255, 0), 2);
+		cv::line(compareKpts, p1, p2, cv::Scalar(255, 0, 0), 1);
+	}
+	putText(compareKpts, "relative t norm:" + to_string(rela_t) + "yaw:" + to_string(rela_y), cv::Point2f(30, 30), cv::FONT_HERSHEY_SIMPLEX, 1, cv::Scalar(0, 255, 255));
+        
+	std::string image_path0 = "/home/yutong/spVINS_ws/results/match_img/vins_pnp/" + to_string(index) + "_match.png";
+    cv::imwrite(image_path0.c_str(), compareKpts);
+
+}
 
 int KeyFrame::HammingDis(const BRIEF::bitset &a, const BRIEF::bitset &b)
 {

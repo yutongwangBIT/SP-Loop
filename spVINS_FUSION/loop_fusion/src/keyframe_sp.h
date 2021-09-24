@@ -18,6 +18,11 @@
 using namespace Eigen;
 using namespace std;
 
+typedef struct {
+    double r,g,b;
+} COLOUR;
+
+
 class KeyFrameSP
 {
 public:
@@ -35,7 +40,9 @@ public:
 	void updateVioPose(const Eigen::Vector3d &_T_w_i, const Eigen::Matrix3d &_R_w_i);
 
 	void extractSuperPoints();
+	void extractWindowPoints();
 	void computeWindowPoints();
+	bool findConnection(KeyFrameSP* old_kf);
 
 	Eigen::Vector3d getLoopRelativeT();
 	double getLoopRelativeYaw();
@@ -58,12 +65,17 @@ public:
 	vector<cv::Point3f> point_3d; 
 	vector<cv::Point2f> point_2d_uv;
 	vector<cv::Point2f> point_2d_norm;
+	vector<cv::Point3f> point_3d_window;  //correspond with window_keypoints
+	vector<cv::Point2f> point_2d_uv_window;
+	vector<cv::Point2f> point_2d_norm_window;
 	vector<double> point_id;
+	vector<double> point_id_window;
 	vector<cv::KeyPoint> keypoints;
 	vector<cv::KeyPoint> keypoints_norm;
 	vector<cv::KeyPoint> window_keypoints;
 	cv::Mat descriptors; //float n*256
 	cv::Mat descriptors_converted; //int
+	cv::Mat window_descriptors;
 	bool has_fast_point;
 	int sequence;
 
@@ -78,5 +90,12 @@ private:
 	SPDetector* sp_detector;
 	cv::Size img_size;
 	void draw();
+	void drawLoopMatch(KeyFrameSP* old_kf, vector<cv::Point2f> matched_2d_old, 
+                      vector<cv::Point2f> matched_2d_cur, vector<float> matched_scores, float rela_t=0.0, float rela_y=0.0);
+	void computeWindowPointsAfter(vector<cv::Point2f> matched_2d_cur, vector<uchar> &status);
+	void PnPRANSAC(const vector<cv::Point2f> &matched_2d_old_norm,
+	               const std::vector<cv::Point3f> &matched_3d,
+	               std::vector<uchar> &status,
+	               Eigen::Vector3d &PnP_T_old, Eigen::Matrix3d &PnP_R_old);
 };
 

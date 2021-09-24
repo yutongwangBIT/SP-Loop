@@ -206,7 +206,7 @@ map<int, vector<pair<int, Eigen::Matrix<double, 7, 1>>>> FeatureTracker::trackIm
             }
             else{
                 cv::goodFeaturesToTrack(cur_img, n_pts, MAX_CNT - cur_pts.size(), 0.01, MIN_DIST, mask);
-              //  printf("n_pts size %d\n", (int)n_pts.size());
+                
             } 
         }
         else
@@ -391,6 +391,8 @@ map<int, vector<pair<int, Eigen::Matrix<double, 7, 1>>>> FeatureTracker::trackIm
         }
         else
             cv::calcOpticalFlowPyrLK(prev_img, cur_img, prev_pts, cur_pts, status, err, cv::Size(21, 21), 3);
+       // std::cout<<"prev pts:"<<prev_pts[0].y<<std::endl;
+       // std::cout<<"cur_pts:"<<cur_pts[0].y<<std::endl;
         // reverse check
         if(FLOW_BACK)
         {
@@ -451,19 +453,26 @@ map<int, vector<pair<int, Eigen::Matrix<double, 7, 1>>>> FeatureTracker::trackIm
             }
             else{
                 cv::goodFeaturesToTrack(cur_img, n_pts, MAX_CNT - cur_pts.size(), 0.01, MIN_DIST, mask);
-              //  printf("n_pts size %d\n", (int)n_pts.size());
+                /*printf("n_pts size %d\n", (int)n_pts.size());
+                for(size_t i=0;i<n_pts.size();i++){
+                    std::cout<<"n_pts:"<<"x:"<<n_pts[i].x<<"y:"<<n_pts[i].y<<",";
+                }*/
             } 
         }
         else
             n_pts.clear();
         //ROS_INFO("detect feature costs: %f ms", t_t.toc());
-
+        //int count = 0;
         for (auto &p : n_pts)
         {
+            //if(count==0)
+                //std::cout<<"p:"<<p.y<<std::endl;
             cur_pts.push_back(p);
             ids.push_back(n_id++);
             track_cnt.push_back(1);
+            //count++;
         }
+      //  std::cout<<"cur_pts 0:"<<cur_pts[0].y<<std::endl;
       //  printf("cur_pts size %d\n", (int)cur_pts.size());
        // printf("feature cnt after add %d\n", (int)ids.size());
         //  std::cout<<ids<<std::endl;
@@ -542,6 +551,9 @@ map<int, vector<pair<int, Eigen::Matrix<double, 7, 1>>>> FeatureTracker::trackIm
         double p_u, p_v;
         p_u = cur_pts[i].x;
         p_v = cur_pts[i].y;
+        /*if(i==0){
+            std::cout<<"cur_pts:"<<cur_pts[i].y<<", p_v:"<<p_v<<std::endl;
+        }*/
         int camera_id = 0;
         double velocity_x, velocity_y;
         velocity_x = pts_velocity[i].x;

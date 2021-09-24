@@ -47,19 +47,31 @@ struct AttentionalGNN : torch::nn::Module {
 
 
 struct SuperGlueNet : torch::nn::Module {
-  SuperGlueNet();
+  SuperGlueNet(float _thres);
   std::vector<torch::Tensor> forward(std::vector<torch::Tensor> x);
   std::shared_ptr<KeypointEncoder> kenc;
   std::shared_ptr<AttentionalGNN> gnn;
   torch::nn::Conv1d final_proj;
+  float match_threshold;
 };
 class SPGlue {
 public:
-    SPGlue(std::string _weights_path, bool _cuda);
+    SPGlue(std::string _weights_path, float _match_threshold, bool _cuda);
     std::vector<cv::DMatch> match(std::vector<cv::KeyPoint> pts_1, std::vector<cv::KeyPoint> pts_2, cv::Mat descriptors_1, cv::Mat descriptors_2);
+    void match(std::vector<cv::KeyPoint> pts_1, std::vector<cv::KeyPoint> pts_2, cv::Mat descriptors_1, 
+                           cv::Mat descriptors_2, std::vector<cv::KeyPoint> pts_1_norm, std::vector<cv::KeyPoint> pts_2_norm, std::vector<cv::Point2f> &matched_2d_old,
+						               std::vector<cv::Point2f> &matched_2d_old_norm,std::vector<cv::Point2f> &matched_2d_cur,std::vector<cv::Point2f> &matched_2d_cur_norm, std::vector<float> &matched_scores, std::vector<uchar> &status);
+    void match(std::vector<cv::KeyPoint> pts_1, std::vector<cv::KeyPoint> pts_2,
+                          cv::Mat descriptors_1, cv::Mat descriptors_2,  
+                          std::vector<cv::KeyPoint> pts_2_norm, 
+                          std::vector<cv::Point2f> &matched_2d_old,
+						              std::vector<cv::Point2f> &matched_2d_old_norm,
+                          std::vector<float> &matched_scores, 
+                          std::vector<uchar> &status);
 private:
     std::shared_ptr<SuperGlueNet> net;
     std::string weights_path;
+    float match_threshold;
     bool cuda;
     torch::DeviceType device_type;
 };
@@ -67,7 +79,7 @@ private:
 struct SuperPointNet : torch::nn::Module {
   SuperPointNet();
 
-  std::vector<torch::Tensor> forward(torch::Tensor x, int nms_dist);
+  std::vector<torch::Tensor> forward(torch::Tensor x, int nms_dist, bool bNms=true);
 
 
   torch::nn::Conv2d conv1a;
@@ -96,6 +108,7 @@ class SPDetector {
 public:
     SPDetector(std::string _weights_path, int _nms_dist=4, float _conf_thresh=0.1,  bool _cuda=false);
     bool detect(cv::Mat img, std::vector<cv::KeyPoint>& kpts, cv::Mat& descriptors, const int num_pts);
+    bool detectWindow(cv::Mat img, std::vector<cv::Point2f>& pts, std::vector<cv::KeyPoint>& kpts, cv::Mat& descriptors);
 private:
     std::shared_ptr<SuperPointNet> net;
     std::string weights_path;

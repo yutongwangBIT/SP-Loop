@@ -37,7 +37,7 @@ void normalize_keypoints(torch::Tensor &kpts){
 
 torch::Tensor attention(torch::Tensor query, torch::Tensor key, torch::Tensor value){
     auto dim = query.size(1);
-    auto scores = torch::einsum("bdhn,bdhm->bhnm", {query, key}) / dim * 0.5 * 0.5;
+    auto scores = torch::einsum("bdhn,bdhm->bhnm", {query, key}) / 8.0;
     auto prob = torch::nn::functional::softmax(scores, -1);
     return torch::einsum("bhnm,bdhm->bdhn", {prob, value});
 }   
@@ -102,7 +102,7 @@ torch::Tensor KeypointEncoder::forward(torch::Tensor kpts, torch::Tensor scores)
 MultiHeadedAttention::MultiHeadedAttention(){
     merge = register_module("merge", torch::nn::Conv1d(torch::nn::Conv1dOptions( 256, 256, 1).stride(1)));
     for(size_t i=0; i<3; i++){ //length of layer_names
-        proj->push_back(merge);
+        proj->push_back(merge->clone());
     }
     register_module("proj", proj);
     num_heads = 4;
@@ -168,12 +168,13 @@ void AttentionalGNN::forward(torch::Tensor &desc0, torch::Tensor &desc1){
     }
 }
 
-SuperGlueNet::SuperGlueNet()
+SuperGlueNet::SuperGlueNet(float _thres)
     :final_proj(torch::nn::Conv1dOptions( 256, 256, 1).stride(1).bias(true))
 {
     kenc = register_module<KeypointEncoder>("kenc", std::make_shared<KeypointEncoder>());
     gnn = register_module<AttentionalGNN>("gnn", std::make_shared<AttentionalGNN>());
     register_module("final_proj", final_proj);
+    match_threshold = _thres;
 }
 
 
@@ -198,19 +199,18 @@ std::vector<torch::Tensor> SuperGlueNet::forward(std::vector<torch::Tensor> x) {
     //std::cout<<mdesc0<<std::endl;
     //std::cout<<mdesc1.sizes()<<std::endl;
     auto scores = torch::einsum("bdn,bdm->bnm",{mdesc0, mdesc1});
-    scores = (scores / 256 *0.5*0.5).to(torch::kCUDA);
+    scores = (scores / 16.0).to(torch::kCUDA);
     auto bin_score = torch::tensor(1.).to(torch::kCUDA);;
     bin_score = bin_score.set_requires_grad(true);
     scores = log_optimal_transport(scores, bin_score, 100); //'sinkhorn_iterations'
     //Get the matches with score above "match_threshold".
-    std::cout<<scores.sizes()<<std::endl;
+    //std::cout<<"match_threshold:"<<match_threshold<<std::endl;
     auto scores_split = scores.split_with_sizes({scores.size(1)-1, 1}, 1)[0].split_with_sizes({scores.size(2)-1, 1}, 2)[0];
-    std::cout<<scores_split.sizes()<<std::endl;
+    //std::cout<<"scores_split sizes:"<<scores_split.sizes()<<std::endl;
     auto max0 = scores_split.max(2); //scores[:, :-1, :-1].max(2) libtorch cannot do the same thing, without split, the index are always be the last one
     auto max1 = scores_split.max(1);
-    auto indices0 = std::get<1>(max0); //max0.indices 
+    auto indices0 = std::get<1>(max0);
     auto indices1 = std::get<1>(max1);
-    std::cout<<indices0.sizes()<<std::endl;
     auto a0 = arange_like(indices0, 1);
     auto a1 = arange_like(indices1, 1);
     a0 = a0.reshape({1, a0.size(0)});
@@ -219,17 +219,13 @@ std::vector<torch::Tensor> SuperGlueNet::forward(std::vector<torch::Tensor> x) {
     auto g1 = indices0.gather(1, indices1);
     auto mutual0 = a0.to(torch::kCUDA) == g0.to(torch::kCUDA);
     auto mutual1 = a1.to(torch::kCUDA) == g1.to(torch::kCUDA);
-    std::cout<<mutual0.sizes()<<std::endl;
-    //auto zeros = torch::zeros_like(scores_split);
     auto zeros = torch::tensor(0.);
     auto mscores0 = torch::where(mutual0, std::get<0>(max0).exp().to(torch::kCUDA), zeros.to(torch::kCUDA));
-    auto mscores1 = torch::where(mutual1, std::get<0>(max1).exp().to(torch::kCUDA), zeros.to(torch::kCUDA));
-    auto valid0 = torch::__and__(mutual0, (mscores0 > 0.0002));
+    auto mscores1 = torch::where(mutual1, mscores0.gather(1, indices1), zeros.to(torch::kCUDA));
+    auto valid0 = torch::__and__(mutual0, (mscores0 > match_threshold));
     auto valid1 = torch::__and__(mutual1, valid0.gather(1, indices1));
-    indices0 = torch::where(mutual0, indices0, torch::tensor(-1).to(torch::kCUDA));
-    indices1 = torch::where(mutual1, indices1, torch::tensor(-1).to(torch::kCUDA));
-    //std::cout<<indices0<<std::endl;
-    //std::cout<<indices1<<std::endl;
+    indices0 = torch::where(valid0, indices0, torch::tensor(-1).to(torch::kCUDA));
+    indices1 = torch::where(valid1, indices1, torch::tensor(-1).to(torch::kCUDA));
     std::vector<torch::Tensor> ret;
     ret.push_back(indices0);
     ret.push_back(indices1);
@@ -238,12 +234,13 @@ std::vector<torch::Tensor> SuperGlueNet::forward(std::vector<torch::Tensor> x) {
     return ret;
 }
 
-SPGlue::SPGlue(std::string _weights_path, bool _cuda)
-:weights_path(_weights_path),cuda(_cuda)
+SPGlue::SPGlue(std::string _weights_path, float _match_threshold, bool _cuda)
+:weights_path(_weights_path),match_threshold(_match_threshold),cuda(_cuda)
 {
-    net = std::make_shared<SuperGlueNet>();
+    net = std::make_shared<SuperGlueNet>(match_threshold);
     torch::load(net, weights_path); 
     std::cout<<"weight Loaded"<<std::endl;
+    net->eval();
     bool use_cuda = cuda && torch::cuda::is_available();
     if (use_cuda){
         std::cout<<"use_cuda"<<std::endl;
@@ -253,6 +250,175 @@ SPGlue::SPGlue(std::string _weights_path, bool _cuda)
         device_type = torch::kCPU;
     torch::Device device(device_type);
     net->to(device);
+}
+void SPGlue::match(std::vector<cv::KeyPoint> pts_1, std::vector<cv::KeyPoint> pts_2,
+                          cv::Mat descriptors_1,cv::Mat descriptors_2,  
+                          std::vector<cv::KeyPoint> pts_2_norm, 
+                          std::vector<cv::Point2f> &matched_2d_old,
+						  std::vector<cv::Point2f> &matched_2d_old_norm,
+                          std::vector<float> &matched_scores, 
+                          std::vector<uchar> &status){
+    torch::Device device(device_type);
+    cv::Mat pointmatrix1(pts_1.size(), 2, CV_32F); // [2 n]
+    cv::Mat scoresmatrix1(pts_1.size(), 1, CV_32F);
+    int column1 = 0;
+    for (auto& kp: pts_1) {
+        status.push_back(0);
+        pointmatrix1.at<float>(column1,0) = kp.pt.x;
+        pointmatrix1.at<float>(column1,1) = kp.pt.y;
+        scoresmatrix1.at<float>(column1, 0) = kp.response;
+        column1++;
+    }
+    cv::Mat pointmatrix2(pts_2.size(), 2, CV_32F); // [2 n]
+    cv::Mat scoresmatrix2(pts_2.size(), 1, CV_32F); //[1 n]
+    int column2 = 0;
+    for (auto& kp: pts_2) {
+        pointmatrix2.at<float>(column2,0) = kp.pt.x;
+        pointmatrix2.at<float>(column2,1) = kp.pt.y;
+        scoresmatrix2.at<float>(column2,0) = kp.response;
+        column2++;
+    }
+    descriptors_1 = descriptors_1.t();
+    descriptors_2 = descriptors_2.t();
+
+    auto input_kpts1 = torch::from_blob(pointmatrix1.data, {1, pointmatrix1.rows, pointmatrix1.cols}); //[1,n,2]
+    auto input_scores1 = torch::from_blob(scoresmatrix1.data, {1, scoresmatrix1.rows});//[1,n]
+    auto input_desc1 = torch::from_blob(descriptors_1.data, {1, descriptors_1.rows, descriptors_1.cols});//[1,256,n]
+    auto input_kpts2 = torch::from_blob(pointmatrix2.data, {1, pointmatrix2.rows, pointmatrix2.cols});
+    auto input_scores2 = torch::from_blob(scoresmatrix2.data, {1, scoresmatrix2.rows});
+    auto input_desc2 = torch::from_blob(descriptors_2.data, {1, descriptors_2.rows, descriptors_2.cols});
+
+    std::vector<torch::Tensor> inputs; //multiple inputs defined in script
+    inputs.push_back(input_kpts1.to(device));
+    inputs.push_back(input_scores1.to(device));
+    inputs.push_back(input_desc1.to(device));
+    inputs.push_back(input_kpts2.to(device));
+    inputs.push_back(input_scores2.to(device));
+    inputs.push_back(input_desc2.to(device));
+
+    //std::cout<<"put input on cuda"<<std::endl;
+    std::chrono::steady_clock::time_point t1 = std::chrono::steady_clock::now();
+    std::vector<torch::Tensor> output = net->forward(inputs);
+    //std::cout<<output<<std::endl;
+    at::cuda::CUDAStream stream = at::cuda::getCurrentCUDAStream();
+    AT_CUDA_CHECK(cudaStreamSynchronize(stream));
+    std::chrono::steady_clock::time_point t2 = std::chrono::steady_clock::now();
+    std::chrono::duration<double> time_used = std::chrono::duration_cast<std::chrono::duration<double>>(t2 - t1);
+    //std::cout << "SP GLUE cost = " << 1000*time_used.count() << " ms. " << std::endl;
+
+    auto matches1 = output[0].squeeze();
+    auto matches2 = output[1].squeeze();
+    auto matching_scores1  = output[2].squeeze();
+    auto matching_scores2 = output[3].squeeze();
+
+    auto valid1 = (matches1 > -1);  
+    //auto valid2 = (matches2 > -1); 
+    auto mkpts1 = torch::nonzero(valid1);
+    //auto x = torch::nonzero(valid2);
+    auto mkpts2 = torch::masked_select(matches1, valid1);
+    matching_scores1 = torch::masked_select(matching_scores1, valid1);
+    //GET MATCHES
+    //std::cout<<"status size:"<<status.size()<<std::endl;
+    //std::cout<<"match size:"<<mkpts1.size(0)<<std::endl;
+    for (int i = 0; i < mkpts1.size(0); i++) {
+        int ind1 = mkpts1[i][0].item<int>();
+        int ind2 = mkpts2[i].item<int>();
+        status[ind1] = 1;
+        matched_2d_old.push_back(pts_2[ind2].pt);
+        matched_2d_old_norm.push_back(pts_2_norm[ind2].pt);
+        matched_scores.push_back(matching_scores1[i].item<float>());
+    }     
+}
+
+void SPGlue::match(std::vector<cv::KeyPoint> pts_1, std::vector<cv::KeyPoint> pts_2,
+                          cv::Mat descriptors_1,cv::Mat descriptors_2,  std::vector<cv::KeyPoint> pts_1_norm, 
+                          std::vector<cv::KeyPoint> pts_2_norm, std::vector<cv::Point2f> &matched_2d_old,
+						  std::vector<cv::Point2f> &matched_2d_old_norm,std::vector<cv::Point2f> &matched_2d_cur,
+                          std::vector<cv::Point2f> &matched_2d_cur_norm,
+                          std::vector<float> &matched_scores, std::vector<uchar> &status){
+    torch::Device device(device_type);
+    cv::Mat pointmatrix1(pts_1.size(), 2, CV_32F); // [2 n]
+    cv::Mat scoresmatrix1(pts_1.size(), 1, CV_32F);
+    int column1 = 0;
+    for (auto& kp: pts_1) {
+        status.push_back(0);
+        pointmatrix1.at<float>(column1,0) = kp.pt.x;
+        pointmatrix1.at<float>(column1,1) = kp.pt.y;
+        scoresmatrix1.at<float>(column1, 0) = kp.response;
+        column1++;
+    }
+    cv::Mat pointmatrix2(pts_2.size(), 2, CV_32F); // [2 n]
+    cv::Mat scoresmatrix2(pts_2.size(), 1, CV_32F); //[1 n]
+    int column2 = 0;
+    for (auto& kp: pts_2) {
+        pointmatrix2.at<float>(column2,0) = kp.pt.x;
+        pointmatrix2.at<float>(column2,1) = kp.pt.y;
+        scoresmatrix2.at<float>(column2,0) = kp.response;
+        column2++;
+    }
+    descriptors_1 = descriptors_1.t();
+    descriptors_2 = descriptors_2.t();
+
+    auto input_kpts1 = torch::from_blob(pointmatrix1.data, {1, pointmatrix1.rows, pointmatrix1.cols}); //[1,n,2]
+    auto input_scores1 = torch::from_blob(scoresmatrix1.data, {1, scoresmatrix1.rows});//[1,n]
+    auto input_desc1 = torch::from_blob(descriptors_1.data, {1, descriptors_1.rows, descriptors_1.cols});//[1,256,n]
+    auto input_kpts2 = torch::from_blob(pointmatrix2.data, {1, pointmatrix2.rows, pointmatrix2.cols});
+    auto input_scores2 = torch::from_blob(scoresmatrix2.data, {1, scoresmatrix2.rows});
+    auto input_desc2 = torch::from_blob(descriptors_2.data, {1, descriptors_2.rows, descriptors_2.cols});
+
+    std::vector<torch::Tensor> inputs; //multiple inputs defined in script
+    inputs.push_back(input_kpts1.to(device));
+    inputs.push_back(input_scores1.to(device));
+    inputs.push_back(input_desc1.to(device));
+    inputs.push_back(input_kpts2.to(device));
+    inputs.push_back(input_scores2.to(device));
+    inputs.push_back(input_desc2.to(device));
+
+    //std::cout<<"put input on cuda"<<std::endl;
+    std::chrono::steady_clock::time_point t1 = std::chrono::steady_clock::now();
+    std::vector<torch::Tensor> output = net->forward(inputs);
+    //std::cout<<output<<std::endl;
+    at::cuda::CUDAStream stream = at::cuda::getCurrentCUDAStream();
+    AT_CUDA_CHECK(cudaStreamSynchronize(stream));
+    std::chrono::steady_clock::time_point t2 = std::chrono::steady_clock::now();
+    std::chrono::duration<double> time_used = std::chrono::duration_cast<std::chrono::duration<double>>(t2 - t1);
+    //std::cout << "SP GLUE cost = " << 1000*time_used.count() << " ms. " << std::endl;
+
+    auto matches1 = output[0].squeeze();
+    auto matches2 = output[1].squeeze();
+    auto matching_scores1  = output[2].squeeze();
+    auto matching_scores2 = output[3].squeeze();
+
+    auto valid1 = (matches1 > -1);  
+    //auto valid2 = (matches2 > -1); 
+    auto mkpts1 = torch::nonzero(valid1);
+    //auto x = torch::nonzero(valid2);
+    auto mkpts2 = torch::masked_select(matches1, valid1);
+    matching_scores1 = torch::masked_select(matching_scores1, valid1);
+    //GET MATCHES
+    //std::cout<<"status size:"<<status.size()<<std::endl;
+    //std::cout<<"match size:"<<mkpts1.size(0)<<std::endl;
+    for (int i = 0; i < mkpts1.size(0); i++) {
+        int ind1 = mkpts1[i][0].item<int>();
+        int ind2 = mkpts2[i].item<int>();
+        status[ind1] = 1;
+        matched_2d_cur.push_back(pts_1[ind1].pt);
+        matched_2d_cur_norm.push_back(pts_1_norm[ind1].pt);
+        matched_2d_old.push_back(pts_2[ind2].pt);
+        matched_2d_old_norm.push_back(pts_2_norm[ind2].pt);
+        matched_scores.push_back(matching_scores1[i].item<float>());
+    }           
+    //GET MATCHES
+    //std::cout<<"status size:"<<status.size()<<std::endl;
+    //std::cout<<"match size:"<<matches1.sizes()<<std::endl;
+   /* for (int i = 0; i < matches1.size(0); i++) {
+        int ind1 = matches1[i].item<int>();
+        int ind2 = matches2[i].item<int>();
+        status[ind1] = 1;
+        matched_2d_old.push_back(pts_2[ind2].pt);
+        matched_2d_old_norm.push_back(pts_2_norm[ind2].pt);
+        matched_scores.push_back(matching_scores1[i].item<float>());
+    }   */    
 }
 std::vector<cv::DMatch> SPGlue::match(std::vector<cv::KeyPoint> pts_1, std::vector<cv::KeyPoint> pts_2, cv::Mat descriptors_1, cv::Mat descriptors_2){
     torch::Device device(device_type);
@@ -300,7 +466,7 @@ std::vector<cv::DMatch> SPGlue::match(std::vector<cv::KeyPoint> pts_1, std::vect
     AT_CUDA_CHECK(cudaStreamSynchronize(stream));
     std::chrono::steady_clock::time_point t2 = std::chrono::steady_clock::now();
     std::chrono::duration<double> time_used = std::chrono::duration_cast<std::chrono::duration<double>>(t2 - t1);
-    std::cout << "SP GLUE cost = " << 1000*time_used.count() << " ms. " << std::endl;
+    //std::cout << "SP GLUE cost = " << 1000*time_used.count() << " ms. " << std::endl;
 
     auto matches1 = output[0].squeeze();
     auto matches2 = output[1].squeeze();
@@ -368,7 +534,7 @@ SuperPointNet::SuperPointNet()
   }
 
 
-std::vector<torch::Tensor> SuperPointNet::forward(torch::Tensor x, int nms_dist) {
+std::vector<torch::Tensor> SuperPointNet::forward(torch::Tensor x,int nms_dist, bool bNms) {
 
     x = torch::relu(conv1a->forward(x));
     x = torch::relu(conv1b->forward(x));
@@ -405,7 +571,8 @@ std::vector<torch::Tensor> SuperPointNet::forward(torch::Tensor x, int nms_dist)
     semi = semi.permute({0, 1, 3, 2, 4});
     semi = semi.contiguous().view({-1, Hc * 8, Wc * 8});  // [B, H, W]
 
-    simple_nms(semi, nms_dist);
+    if(bNms)
+        simple_nms(semi, nms_dist);
 
     std::vector<torch::Tensor> ret;
     ret.push_back(semi);
@@ -438,7 +605,8 @@ SPDetector::SPDetector(std::string _weights_path, int _nms_dist, float _conf_thr
 
 bool SPDetector::detect(cv::Mat img, std::vector<cv::KeyPoint>& pts, cv::Mat& descriptors, const int c_num_pts){
     cv::Mat img_re;
-    cv::resize(img, img_re, cv::Size(640, 480), cv::INTER_AREA);
+    //cv::resize(img, img_re, cv::Size(640, 480), cv::INTER_AREA);
+    cv::resize(img, img_re, cv::Size(640, 480));
     auto input = torch::from_blob(img_re.clone().data, {1, 1, img_re.rows, img_re.cols}, torch::kByte);
     
     input = input.to(torch::kFloat) / 255;
@@ -463,7 +631,7 @@ bool SPDetector::detect(cv::Mat img, std::vector<cv::KeyPoint>& pts, cv::Mat& de
     
     auto mask_score = torch::ge(mProb,conf_thresh);
     auto scores = torch::masked_select(mProb, mask_score);
-    std::cout<<"score size:"<<scores.size(0)<<std::endl;
+    //std::cout<<"score size:"<<scores.size(0)<<std::endl;
     if(scores.size(0)==0)
         return false;
     auto num_pts = std::min(c_num_pts, int(scores.size(0)));
@@ -492,4 +660,90 @@ bool SPDetector::detect(cv::Mat img, std::vector<cv::KeyPoint>& pts, cv::Mat& de
         descriptors.push_back(descriptors_whole.row(index)); //WRONG?
     }  
     return true;
+}
+
+bool SPDetector::detectWindow(cv::Mat img, std::vector<cv::Point2f>& pts, std::vector<cv::KeyPoint>& keypoints, cv::Mat& descriptors){
+    cv::Mat img_re;
+    cv::resize(img, img_re, cv::Size(640, 480));
+    auto input = torch::from_blob(img_re.clone().data, {1, 1, img_re.rows, img_re.cols}, torch::kByte);
+    input = input.to(torch::kFloat) / 255;
+    torch::Device device(device_type);
+    input = input.set_requires_grad(false);
+
+    std::chrono::steady_clock::time_point t1 = std::chrono::steady_clock::now();
+    auto out = net->forward(input.to(device), nms_dist, false);   //no nms
+    at::cuda::CUDAStream stream = at::cuda::getCurrentCUDAStream();
+    AT_CUDA_CHECK(cudaStreamSynchronize(stream));
+    std::chrono::steady_clock::time_point t2 = std::chrono::steady_clock::now();
+    std::chrono::duration<double> time_used = std::chrono::duration_cast<std::chrono::duration<double>>(t2 - t1);
+    //std::cout << "extract SP cost = " << 1000*time_used.count() << " ms. " << std::endl;
+    
+    torch::Tensor mProb = out[0].squeeze(0);  // [H, W] # squeeze(0) leaves the tensor unchanged
+    torch::Tensor mDesc = out[1];
+    // std::cout<<mProb<<std::endl;
+    //set mask according to pts
+    float row = (float)img.rows;
+    float col = (float)img.cols;
+    torch::Tensor kpts = torch::zeros({pts.size(),2});
+    int i = 0;
+    for(auto &pt : pts){
+        int u = (int)pt.x*640.0/col; //col
+        int v = (int)pt.y; //row
+        kpts[i][0] = v;
+        kpts[i][1] = u;
+        float response = mProb[v][u].item<float>();
+        keypoints.push_back(cv::KeyPoint(pt.x , pt.y, 8, -1, response)); //use original
+        i++;
+    }
+    auto grid = torch::zeros({1, 1, kpts.size(0), 2});  // [1, 1, n_keypoints, 2]
+    grid[0][0].slice(1, 0, 1) = 2.0 * kpts.slice(1, 1, 2) / mProb.size(1) - 1;  // x
+    grid[0][0].slice(1, 1, 2) = 2.0 * kpts.slice(1, 0, 1) / mProb.size(0) - 1;  // y
+    auto desc = torch::grid_sampler(mDesc, grid.to(device), 0, 0, true);  // [1, 256, 1, n_keypoints]
+    desc = desc.squeeze(0).squeeze(1);  // [256, n_keypoints] Returns a tensor with all the dimensions of input of size 1 removed
+    // normalize to 1
+    auto dn = torch::norm(desc, 2, 1);
+    desc = desc.div(torch::unsqueeze(dn, 1));
+    desc = desc.transpose(0, 1).contiguous();  // [n_keypoints, 256]
+    desc = desc.to(torch::kCPU);
+    cv::Mat desc_mat(cv::Size(desc.size(1), desc.size(0)), CV_32FC1, desc.data_ptr());
+    descriptors = desc_mat.clone();
+    return true;
+   /* cv::Mat mat_mask_pts = cv::Mat::zeros(cv::Size(640, 480), CV_8UC1);
+    for(auto &pt : pts){
+        int u = (int)pt.x*640.0/col; //col
+        //std::cout<<"u:"<<u<<",";
+        int v = (int)pt.y; //row
+        mat_mask_pts.at<uchar>(v,u) = 255;
+    }
+    auto mask_input = torch::from_blob(mat_mask_pts.clone().data, { mat_mask_pts.rows, mat_mask_pts.cols}, torch::kU8);
+    mask_input = mask_input.to(device);
+    auto zeros = torch::zeros_like(mProb);
+    mProb = torch::where(mask_input==255, mProb, zeros);
+    auto kpts = (mProb > 0);
+    kpts = torch::nonzero(kpts); 
+
+    if(kpts.size(0)!=pts.size()){
+        std::cout<<"kpts size:"<<kpts.size(0)<<",  pts size:"<<pts.size()<<std::endl;
+        return false;
+    }
+
+    for (int i = 0; i < kpts.size(0); i++) {
+        float response = mProb[kpts[i][0]][kpts[i][1]].item<float>();
+        float u = kpts[i][1].item<float>() * col / 640.0;
+        keypoints.push_back(cv::KeyPoint(u , kpts[i][0].item<float>(), 8, -1, response));
+    }
+
+    auto grid = torch::zeros({1, 1, kpts.size(0), 2});  // [1, 1, n_keypoints, 2]
+    grid[0][0].slice(1, 0, 1) = 2.0 * kpts.slice(1, 1, 2) / mProb.size(1) - 1;  // x
+    grid[0][0].slice(1, 1, 2) = 2.0 * kpts.slice(1, 0, 1) / mProb.size(0) - 1;  // y
+    auto desc = torch::grid_sampler(mDesc, grid.to(device), 0, 0, true);  // [1, 256, 1, n_keypoints]
+    desc = desc.squeeze(0).squeeze(1);  // [256, n_keypoints] Returns a tensor with all the dimensions of input of size 1 removed
+    // normalize to 1
+    auto dn = torch::norm(desc, 2, 1);
+    desc = desc.div(torch::unsqueeze(dn, 1));
+    desc = desc.transpose(0, 1).contiguous();  // [n_keypoints, 256]
+    desc = desc.to(torch::kCPU);
+    cv::Mat desc_mat(cv::Size(desc.size(1), desc.size(0)), CV_32FC1, desc.data_ptr());
+    descriptors = desc_mat.clone();
+    return true;*/
 }

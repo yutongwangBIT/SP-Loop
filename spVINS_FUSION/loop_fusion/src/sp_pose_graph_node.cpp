@@ -72,6 +72,7 @@ float SP_THRES;
 int SP_NMS_DIST;
 SPDetector* sp;
 SPGlue* sp_glue;
+float SP_GLUE_THRES;
 
 CameraPoseVisualization cameraposevisual(1, 0, 0, 1);
 Eigen::Vector3d last_t(-100, -100, -100);
@@ -325,7 +326,7 @@ void process()
         {
             //printf(" pose time %f \n", pose_msg->header.stamp.toSec());
             //printf(" point time %f \n", point_msg->header.stamp.toSec());
-            printf(" image time %f \n", image_msg->header.stamp.toSec());
+            //printf(" image time %f \n", image_msg->header.stamp.toSec());
             // skip fisrt few
             if (skip_first_cnt < SKIP_FIRST_CNT)
             {
@@ -400,10 +401,11 @@ void process()
                 KeyFrameSP* keyframe = new KeyFrameSP(pose_msg->header.stamp.toSec(), frame_index, T, R, image,
                                    point_3d, point_2d_uv, point_2d_normal, point_id, sp, sp_glue, sequence); 
                 std_msgs::Header header = image_msg->header;
-                pubCompImage(keyframe->compareKpts, header);  
+                //pubCompImage(keyframe->compareKpts, header);  
                 m_process.lock();
                 start_flag = 1;
                 posegraph_sp.addKeyFrameSP(keyframe, 1);
+                pubCompImage(keyframe->compareKpts, header);  
                 m_process.unlock();
                 frame_index++;
                 last_t = T;
@@ -495,7 +497,7 @@ int main(int argc, char **argv)
     fsSettings["save_image"] >> DEBUG_IMAGE;
 
     LOAD_PREVIOUS_POSE_GRAPH = fsSettings["load_previous_pose_graph"];
-    VINS_RESULT_PATH = VINS_RESULT_PATH + "/vio_loop.csv";
+    VINS_RESULT_PATH = VINS_RESULT_PATH + "/sp_loop_eurocMH4.txt";
     std::ofstream fout(VINS_RESULT_PATH, std::ios::out);
     fout.close();
 
@@ -509,9 +511,10 @@ int main(int argc, char **argv)
     std::cout<<"spglue_path:"<<SPGLUE_PATH<<std::endl;
     float SP_THRES = fsSettings["sp_thres_loop"];
     int SP_NMS_DIST = fsSettings["sp_nms_dist_loop"];
+    float SP_GLUE_THRES = fsSettings["sp_glue_thres"];
     //LOAD Models
     sp = new SPDetector(SP_PATH, SP_NMS_DIST, SP_THRES,true);
-    sp_glue = new SPGlue(SPGLUE_PATH,true);
+    sp_glue = new SPGlue(SPGLUE_PATH, SP_GLUE_THRES,true);
     ROS_INFO("SP MODELS LOADED!");
 
     fsSettings.release();

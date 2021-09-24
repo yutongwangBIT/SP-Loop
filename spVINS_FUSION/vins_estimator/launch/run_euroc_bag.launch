@@ -18,14 +18,14 @@
             args="$(find vins_estimator)/../config/euroc/euroc_stereo_config.yaml"
             output="screen"> </node>
 
-    <!--node respawn="true" pkg="loop_fusion" type="sp_loop_fusion_node" name="sp_loop_fusion"
-            args="$(find vins_estimator)/../config/euroc/euroc_stereo_config.yaml" output="screen">
-            <param name="pose_graph_save_path" value="$(arg log_dir)/vins_ba_"/>
-    </node-->
-    <node respawn="true" pkg="loop_fusion" type="loop_fusion_node" name="loop_fusion"
+    <node respawn="true" pkg="loop_fusion" type="sp_loop_fusion_node" name="sp_loop_fusion"
             args="$(find vins_estimator)/../config/euroc/euroc_stereo_config.yaml" output="screen">
             <param name="pose_graph_save_path" value="$(arg log_dir)/vins_ba_"/>
     </node>
+    <!--node respawn="true" pkg="loop_fusion" type="loop_fusion_node" name="loop_fusion"
+            args="$(find vins_estimator)/../config/euroc/euroc_stereo_config.yaml" output="screen">
+            <param name="pose_graph_save_path" value="$(arg log_dir)/vins_ba_"/>
+    </node-->
 
     <!-- Visualization node -->
     <node pkg="rviz" type="rviz" name="rviz" respawn="true"

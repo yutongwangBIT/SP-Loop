@@ -93,12 +93,13 @@ void PoseGraphSP::addKeyFrameSP(KeyFrameSP* cur_kf, bool flag_detect_loop)
     {
         addKeyFrameSPIntoVoc(cur_kf);
     }
+
 	if (loop_index != -1)
 	{
         //printf(" %d detect loop with %d \n", cur_kf->index, loop_index);
         KeyFrameSP* old_kf = getKeyFrameSP(loop_index);
-
-       /* if (cur_kf->findConnection(old_kf))
+        
+        if (cur_kf->findConnection(old_kf))
         {
             if (earliest_loop_index > loop_index || earliest_loop_index == -1)
                 earliest_loop_index = loop_index;
@@ -151,7 +152,7 @@ void PoseGraphSP::addKeyFrameSP(KeyFrameSP* cur_kf, bool flag_detect_loop)
             m_optimize_buf.lock();
             optimize_buf.push(cur_kf->index);
             m_optimize_buf.unlock();
-        }*/
+        }
 	}
 	m_keyframelist.lock();
     Vector3d P;
@@ -174,7 +175,7 @@ void PoseGraphSP::addKeyFrameSP(KeyFrameSP* cur_kf, bool flag_detect_loop)
     path[sequence_cnt].poses.push_back(pose_stamped);
     path[sequence_cnt].header = pose_stamped.header;
 
-    if (SAVE_LOOP_PATH)
+    /*if (SAVE_LOOP_PATH)
     {
         ofstream loop_path_file(VINS_RESULT_PATH, ios::app);
         loop_path_file.setf(ios::fixed, ios::floatfield);
@@ -189,6 +190,23 @@ void PoseGraphSP::addKeyFrameSP(KeyFrameSP* cur_kf, bool flag_detect_loop)
               << Q.y() << ","
               << Q.z() << ","
               << endl;
+        loop_path_file.close();
+    }*/
+    if (SAVE_LOOP_PATH)
+    {
+        ofstream loop_path_file(VINS_RESULT_PATH, ios::app);
+        loop_path_file.setf(ios::fixed, ios::floatfield);
+        loop_path_file.precision(4);
+        loop_path_file << cur_kf->time_stamp << " ";
+        loop_path_file.precision(5);
+        loop_path_file  << P.x() << " "
+                << P.y() << " "
+                << P.z() << " "
+                << Q.w() << " "
+                << Q.x() << " "
+                << Q.y() << " "
+                << Q.z()
+                << endl;
         loop_path_file.close();
     }
     //draw local connection
@@ -213,7 +231,7 @@ void PoseGraphSP::addKeyFrameSP(KeyFrameSP* cur_kf, bool flag_detect_loop)
     {
         if (cur_kf->has_loop)
         {
-            //printf("has loop \n");
+            printf("has loop \n");
             KeyFrameSP* connected_KF = getKeyFrameSP(cur_kf->loop_index);
             Vector3d connected_P,P0;
             Matrix3d connected_R,R0;
@@ -222,7 +240,9 @@ void PoseGraphSP::addKeyFrameSP(KeyFrameSP* cur_kf, bool flag_detect_loop)
             cur_kf->getPose(P0, R0);
             if(cur_kf->sequence > 0)
             {
-                //printf("add loop into visual \n");
+                printf("add loop into visual \n");
+               // std::cout<<P0<<std::endl;
+               // std::cout<<connected_P<<std::endl;
                 posegraph_visualization->add_loopedge(P0, connected_P + Vector3d(VISUALIZATION_SHIFT_X, VISUALIZATION_SHIFT_Y, 0));
             }
             
@@ -271,7 +291,7 @@ int PoseGraphSP::detectLoop(KeyFrameSP* keyframe, int frame_index)
     TicToc t_query;
     db.query(keyframe->descriptors_converted, ret, 4, frame_index - 50);
     //printf("query time: %f", t_query.toc());
-    cout << "Searching for Image " << frame_index << ". " << ret << endl;
+    //cout << "Searching for Image " << frame_index << ". " << ret << endl;
 
     TicToc t_add;
     db.add(keyframe->descriptors_converted); 
@@ -282,8 +302,9 @@ int PoseGraphSP::detectLoop(KeyFrameSP* keyframe, int frame_index)
     if (DEBUG_IMAGE)
     {
         loop_result = compressed_image.clone();
-        if (ret.size() > 0)
-            putText(loop_result, "neighbour score:" + to_string(ret[0].Score), cv::Point2f(10, 50), cv::FONT_HERSHEY_SIMPLEX, 0.5, cv::Scalar(255));
+        putText(loop_result, "Frame Index:" + to_string(frame_index), cv::Point2f(10, 50), cv::FONT_HERSHEY_SIMPLEX, 0.8, cv::Scalar(255),1.5);
+        //if (ret.size() > 0)
+            //putText(loop_result, "neighbour score:" + to_string(ret[0].Score), cv::Point2f(10, 50), cv::FONT_HERSHEY_SIMPLEX, 0.8, cv::Scalar(255),1.5);
     }
     // visual loop result 
     if (DEBUG_IMAGE)
@@ -293,11 +314,15 @@ int PoseGraphSP::detectLoop(KeyFrameSP* keyframe, int frame_index)
             rit = ret.begin();
             //if(rit->Score > 0.07){
                 int tmp_index = rit->Id;
-                std::cout<<"tmp_ind:"<<tmp_index<<std::endl;
+                //std::cout<<"tmp_ind:"<<tmp_index<<std::endl;
                 auto it = image_pool.find(tmp_index);
                 cv::Mat tmp_image = (it->second).clone();
-                putText(tmp_image, "index:  " + to_string(tmp_index) + "loop score:" + to_string(rit->Score), cv::Point2f(10, 50), cv::FONT_HERSHEY_SIMPLEX, 0.5, cv::Scalar(255));
+                putText(tmp_image, "index:" + to_string(tmp_index) + "loop score:" + to_string(rit->Score), cv::Point2f(10, 50), cv::FONT_HERSHEY_SIMPLEX, 0.8, cv::Scalar(255),1.5);
                 cv::hconcat(loop_result, tmp_image, loop_result);
+                /*if(frame_index>150){
+                    std::string image_path = "/home/yutong/spVINS_ws/results/loop_img/sp/" + to_string(frame_index) + "_loop_result.png";
+                    cv::imwrite(image_path.c_str(), loop_result);
+                }*/
             //}
         }
         
@@ -341,7 +366,7 @@ int PoseGraphSP::detectLoop(KeyFrameSP* keyframe, int frame_index)
         int min_index = -1;
         for (unsigned int i = 0; i < ret.size(); i++)
         {
-            if (min_index == -1 || (ret[i].Id < min_index && ret[i].Score > 0.015))
+            if (min_index == -1 || (ret[i].Id < min_index && ret[i].Score > 0.08))
                 min_index = ret[i].Id;
         }
         return min_index;
@@ -763,7 +788,7 @@ void PoseGraphSP::updatePath()
             path[(*it)->sequence].header = pose_stamped.header;
         }
 
-        if (SAVE_LOOP_PATH)
+        /*if (SAVE_LOOP_PATH)
         {
             ofstream loop_path_file(VINS_RESULT_PATH, ios::app);
             loop_path_file.setf(ios::fixed, ios::floatfield);
@@ -777,6 +802,23 @@ void PoseGraphSP::updatePath()
                   << Q.x() << ","
                   << Q.y() << ","
                   << Q.z() << ","
+                  << endl;
+            loop_path_file.close();
+        }*/
+        if (SAVE_LOOP_PATH)
+        {
+            ofstream loop_path_file(VINS_RESULT_PATH, ios::app);
+            loop_path_file.setf(ios::fixed, ios::floatfield);
+            loop_path_file.precision(4);
+            loop_path_file << (*it)->time_stamp << " ";
+            loop_path_file.precision(5);
+            loop_path_file  << P.x() << " "
+                  << P.y() << " "
+                  << P.z() << " "
+                  << Q.w() << " "
+                  << Q.x() << " "
+                  << Q.y() << " "
+                  << Q.z()
                   << endl;
             loop_path_file.close();
         }

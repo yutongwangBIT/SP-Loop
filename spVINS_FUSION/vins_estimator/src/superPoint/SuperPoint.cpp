@@ -115,6 +115,7 @@ SPDetector::SPDetector(std::string _weights_path, int _nms_dist, float _conf_thr
 {
     net = std::make_shared<SuperPointNet>();
     torch::load(net, weights_path); 
+    net->eval();
     bool use_cuda = cuda && torch::cuda::is_available();
     if (use_cuda){
         device_type = torch::kCUDA;
@@ -132,7 +133,8 @@ SPDetector::SPDetector(std::string _weights_path, int _nms_dist, float _conf_thr
 
 bool SPDetector::detect(cv::Mat img, cv::Mat pts_mask, std::vector<cv::Point2f>& pts, cv::Mat& descriptors, const int c_num_pts){
     cv::Mat img_re, pts_mask_re;
-    cv::resize(img, img_re, cv::Size(640, 480), cv::INTER_AREA);
+    //cv::resize(img, img_re, cv::Size(640, 480), cv::INTER_AREA);
+    cv::resize(img, img_re, cv::Size(640, 480));
     cv::resize(pts_mask, pts_mask_re, cv::Size(640, 480), cv::INTER_NEAREST);
     auto input = torch::from_blob(img_re.clone().data, {1, 1, img_re.rows, img_re.cols}, torch::kByte);
     
@@ -195,8 +197,11 @@ bool SPDetector::detect(cv::Mat img, cv::Mat pts_mask, std::vector<cv::Point2f>&
     for(auto i=0; i<top_index.size(0); ++i){
         int index = top_index[i].item<int>();
         //std::cout<<"index :"<<index<<std::endl;
-        float x = std::floor(kpts[index][1].item<float>()*(img.cols/(float(img_re.cols))));
-        float y = std::floor(kpts[index][0].item<float>()*(img.rows/(float(img_re.rows))));
+        //float x = std::floor(kpts[index][1].item<float>()*(img.cols/(float(img_re.cols))));
+        //float y = std::floor(kpts[index][0].item<float>()*(img.rows/(float(img_re.rows))));
+        float x = kpts[index][1].item<float>()*(img.cols/(float(img_re.cols)));
+        float y = kpts[index][0].item<float>()*1.000;
+        //std::cout<<"y :"<<y<<",";
         pts.push_back(cv::Point2f(x, y));
         descriptors.push_back(descriptors_whole.row(index)); //WRONG?
     }

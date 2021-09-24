@@ -179,7 +179,7 @@ void PoseGraph::addKeyFrame(KeyFrame* cur_kf, bool flag_detect_loop)
     path[sequence_cnt].poses.push_back(pose_stamped);
     path[sequence_cnt].header = pose_stamped.header;
 
-    if (SAVE_LOOP_PATH)
+    /*if (SAVE_LOOP_PATH)
     {
         ofstream loop_path_file(VINS_RESULT_PATH, ios::app);
         loop_path_file.setf(ios::fixed, ios::floatfield);
@@ -193,6 +193,23 @@ void PoseGraph::addKeyFrame(KeyFrame* cur_kf, bool flag_detect_loop)
               << Q.x() << ","
               << Q.y() << ","
               << Q.z() << ","
+              << endl;
+        loop_path_file.close();
+    }*/
+    if (SAVE_LOOP_PATH)
+    {
+        ofstream loop_path_file(VINS_RESULT_PATH, ios::app);
+        loop_path_file.setf(ios::fixed, ios::floatfield);
+        loop_path_file.precision(4);
+        loop_path_file << cur_kf->time_stamp << " ";
+        loop_path_file.precision(5);
+        loop_path_file  << P.x() << " "
+              << P.y() << " "
+              << P.z() << " "
+              << Q.w() << " "
+              << Q.x() << " "
+              << Q.y() << " "
+              << Q.z()
               << endl;
         loop_path_file.close();
     }
@@ -350,7 +367,7 @@ int PoseGraph::detectLoop(KeyFrame* keyframe, int frame_index)
     db.query(keyframe->brief_descriptors, ret, 4, frame_index - 50); 
     //query(const std::vector<TDescriptor> &features, QueryResults &ret, int max_results = 1, int max_id = -1)
     //printf("query time: %f", t_query.toc());
-    cout << "Searching for Image " << frame_index << ". " << ret << endl;
+    //cout << "Searching for Image " << frame_index << ". " << ret << endl;
 
     TicToc t_add;
     db.add(keyframe->brief_descriptors);
@@ -361,8 +378,9 @@ int PoseGraph::detectLoop(KeyFrame* keyframe, int frame_index)
     if (DEBUG_IMAGE)
     {
         loop_result = compressed_image.clone();
-        if (ret.size() > 0)
-            putText(loop_result, "neighbour score:" + to_string(ret[0].Score), cv::Point2f(10, 50), cv::FONT_HERSHEY_SIMPLEX, 0.5, cv::Scalar(255));
+        putText(loop_result, "Frame Index:" + to_string(frame_index), cv::Point2f(10, 50), cv::FONT_HERSHEY_SIMPLEX, 0.8, cv::Scalar(255),1.5);
+        //if (ret.size() > 0)
+            //putText(loop_result, "neighbour score:" + to_string(ret[0].Score), cv::Point2f(10, 50), cv::FONT_HERSHEY_SIMPLEX, 0.8, cv::Scalar(255),1.5);
     }
     // visual loop result 
     if (DEBUG_IMAGE)
@@ -372,11 +390,15 @@ int PoseGraph::detectLoop(KeyFrame* keyframe, int frame_index)
             rit = ret.begin()+1;
             //if(rit->Score > 0.02){
                 int tmp_index = rit->Id;
-                std::cout<<"tmp_ind:"<<tmp_index<<std::endl;
+                //std::cout<<"tmp_ind:"<<tmp_index<<std::endl;
                 auto it = image_pool.find(tmp_index);
                 cv::Mat tmp_image = (it->second).clone();
-                putText(tmp_image, "index:  " + to_string(tmp_index) + "loop score:" + to_string(rit->Score), cv::Point2f(10, 50), cv::FONT_HERSHEY_SIMPLEX, 0.5, cv::Scalar(255));
+                cv::putText(tmp_image, "index:" + to_string(tmp_index) + "loop score:" + to_string(rit->Score), cv::Point2f(10, 50), cv::FONT_HERSHEY_SIMPLEX, 0.8, cv::Scalar(255),1.5);
                 cv::hconcat(loop_result, tmp_image, loop_result);
+                if(frame_index>150){
+                    std::string image_path = "/home/yutong/spVINS_ws/results/loop_img/vins/" + to_string(frame_index) + "_loop_result.png";
+                    cv::imwrite(image_path.c_str(), loop_result);
+                }
             //}
         }
         /*for (unsigned int i = 0; i < ret.size(); i++)
@@ -839,7 +861,7 @@ void PoseGraph::updatePath()
             path[(*it)->sequence].header = pose_stamped.header;
         }
 
-        if (SAVE_LOOP_PATH)
+        /*if (SAVE_LOOP_PATH)
         {
             ofstream loop_path_file(VINS_RESULT_PATH, ios::app);
             loop_path_file.setf(ios::fixed, ios::floatfield);
@@ -853,6 +875,23 @@ void PoseGraph::updatePath()
                   << Q.x() << ","
                   << Q.y() << ","
                   << Q.z() << ","
+                  << endl;
+            loop_path_file.close();
+        }*/
+        if (SAVE_LOOP_PATH)
+        {
+            ofstream loop_path_file(VINS_RESULT_PATH, ios::app);
+            loop_path_file.setf(ios::fixed, ios::floatfield);
+            loop_path_file.precision(4);
+            loop_path_file << (*it)->time_stamp << " ";
+            loop_path_file.precision(5);
+            loop_path_file  << P.x() << " "
+                  << P.y() << " "
+                  << P.z() << " "
+                  << Q.w() << " "
+                  << Q.x() << " "
+                  << Q.y() << " "
+                  << Q.z()
                   << endl;
             loop_path_file.close();
         }

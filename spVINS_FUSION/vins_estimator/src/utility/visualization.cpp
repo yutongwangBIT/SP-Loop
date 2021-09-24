@@ -172,8 +172,8 @@ void pubOdometry(const Estimator &estimator, const std_msgs::Header &header)
               << estimator.Vs[WINDOW_SIZE].y() << ","
               << estimator.Vs[WINDOW_SIZE].z() << "," << endl;
         foutC.close();
-        //Eigen::Vector3d tmp_T = estimator.Ps[WINDOW_SIZE];
-        //printf("time: %f, t: %f %f %f q: %f %f %f %f \n", header.stamp.toSec(), tmp_T.x(), tmp_T.y(), tmp_T.z(),
+       // Eigen::Vector3d tmp_T = estimator.Ps[WINDOW_SIZE];
+       // printf("time: %f, t: %f %f %f q: %f %f %f %f \n", header.stamp.toSec(), tmp_T.x(), tmp_T.y(), tmp_T.z()
                                                           //tmp_Q.w(), tmp_Q.x(), tmp_Q.y(), tmp_Q.z());
     }
 }
@@ -405,7 +405,7 @@ void pubKeyframe(const Estimator &estimator)
 
                 int imu_j = WINDOW_SIZE - 2 - it_per_id.start_frame;
                // std::cout<<"imu_i:"<<imu_i<<", imu_j:"<<imu_j<<std::endl;
-               // std::cout<<"imu_i:"<<it_per_id.feature_per_frame[imu_i].uv.x()<<", imu_j:"<<it_per_id.feature_per_frame[imu_i].uv.x()<<std::endl;
+               // std::cout<<" imu_j:"<<it_per_id.feature_per_frame[imu_j].uv.y()<<",";
                 sensor_msgs::ChannelFloat32 p_2d;
                 p_2d.values.push_back(it_per_id.feature_per_frame[imu_j].point.x());
                 p_2d.values.push_back(it_per_id.feature_per_frame[imu_j].point.y());

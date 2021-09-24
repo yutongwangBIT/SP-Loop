@@ -111,5 +111,9 @@ public:
 	bool has_loop;
 	int loop_index;
 	Eigen::Matrix<double, 8, 1 > loop_info;
+
+	void drawLoopMatch(KeyFrame* old_kf, vector<cv::Point2f> matched_2d_old, 
+                              vector<cv::Point2f> matched_2d_cur,
+							  float rela_t, float rela_y);
 };
 
