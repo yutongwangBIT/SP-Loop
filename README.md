@@ -3,24 +3,23 @@
 
 Our system is developed on the basis of the state-of-the-art [VINS-Fusion](https://github.com/HKUST-Aerial-Robotics/VINS-Fusion), which contains visual-inertial odometry (VINS-VIO), pose graph optimization (VINS-PGO), and loop closure detection (VINS-Loop). In this work, VINS-VIO and VINS-PGO are adopted, while our proposed loop closure detection approach is used to replace VINS-Loop to improve robustness against viewpoint changes. The flow diagram, illustrating three main stages and the pipeline, is shown as below:.
 
-<img src="https://github.com/yutongwangBIT/SP-Loop/blob/master/support_files/image/pipeline.pdf" width = 80% height = 80% />
+<img src="https://github.com/yutongwangBIT/SP-Loop/blob/master/support_files/image/pipeline.jpg" width = 80% height = 80% />
 
-Firstly, keyframes from VINS-VIO are processed to extract the required descriptors. Secondly, a loop candidate is retrieved from the database based on the offline-trained visual vocabulary. Thirdly, the SuperGlue model is applied to find feature correspondences, which are then used in relative pose computation. Loop detection is finally predicted by examining the number of correspondences and the relative pose. 
+Firstly, keyframes from VINS-VIO are processed to extract the required SuperPoint descriptors. Secondly, a loop candidate is retrieved from the database based on the offline-trained visual vocabulary. Thirdly, the SuperGlue model is applied to find feature correspondences, which are then used in relative pose computation. Loop detection is finally predicted by examining the number of correspondences and the relative pose. 
 
 **Features:**
-- visual loop closure
+- visual loop closure detection approach robust against viewpoint differences
+- combining deep learning models with state-of-the-art SLAM framework
 
-**Authors:** [Tong Qin](http://www.qintonguav.com), Shaozu Cao, Jie Pan, [Peiliang Li](https://peiliangli.github.io/), and [Shaojie Shen](http://www.ece.ust.hk/ece.php/profile/facultydetail/eeshaojie) from the [Aerial Robotics Group](http://uav.ust.hk/), [HKUST](https://www.ust.hk/)
-
-
-**Related Paper:** (paper is not exactly same with code)
-
-* **Online Temporal Calibration for Monocular Visual-Inertial Systems**, Tong Qin, Shaojie Shen, IEEE/RSJ International Conference on Intelligent Robots and Systems (IROS, 2018), **best student paper award** [pdf](https://ieeexplore.ieee.org/abstract/document/8593603)
-
-* **VINS-Mono: A Robust and Versatile Monocular Visual-Inertial State Estimator**, Tong Qin, Peiliang Li, Shaojie Shen, IEEE Transactions on Robotics [pdf](https://ieeexplore.ieee.org/document/8421746/?arnumber=8421746&source=authoralert) 
+**Authors:** Yutong Wang, Bin Xu, Wei Fan, Changle Xiang from the School of Mechanical Engineering, Beijing Institute of Technology.
 
 
-*If you use VINS-Fusion for your academic research, please cite our related papers. [bib](https://github.com/HKUST-Aerial-Robotics/VINS-Fusion/blob/master/support_files/paper_bib.txt)*
+**Related Paper:**
+
+* **A Robust and Efficient Loop Closure Detection Approach for Hybrid Terrestrial and Aerial Vehicles**, Yutong Wang, Bin Xu, Wei Fan, Changle Xiang, xxx [pdf](xxx) 
+
+
+*If you use SP-Loop for your academic research, please cite our related papers. [bib](https://github.com/HKUST-Aerial-Robotics/VINS-Fusion/blob/master/support_files/paper_bib.txt)*
 
 ## 1. Prerequisites
 ### 1.1 **Ubuntu** and **ROS**
@@ -36,7 +35,7 @@ Follow [Ceres Installation](http://ceres-solver.org/installation.html).
 Clone the repository and catkin_make:
 ```
     cd ~/catkin_ws/src
-    git clone https://github.com/HKUST-Aerial-Robotics/VINS-Fusion.git
+    git clone https://github.com/yutongwangBIT/SP-Loop.git
     cd ../
     catkin_make
     source ~/catkin_ws/devel/setup.bash
@@ -48,7 +47,7 @@ Download [EuRoC MAV Dataset](http://projects.asl.ethz.ch/datasets/doku.php?id=km
 Open four terminals, run vins odometry, visual loop closure(optional), rviz and play the bag file respectively. 
 Green path is VIO odometry; red path is odometry under visual loop closure.
 
-### 3.1 Monocualr camera + IMU
+### 3.1 Single Session: Monocualr camera + IMU
 
 ```
     roslaunch vins vins_rviz.launch
@@ -56,12 +55,10 @@ Green path is VIO odometry; red path is odometry under visual loop closure.
     (optional) rosrun loop_fusion loop_fusion_node ~/catkin_ws/src/VINS-Fusion/config/euroc/euroc_mono_imu_config.yaml 
     rosbag play YOUR_DATASET_FOLDER/MH_01_easy.bag
 ```
+### 3.2 Multisession:
 
 
-<img src="https://github.com/HKUST-Aerial-Robotics/VINS-Fusion/blob/master/support_files/image/euroc.gif" width = 430 height = 240 />
-
-
-## 5. Data of a HyTAV
+## 4. Real-world Data collected by a quad ducted-fan HyTAV
 Download [car bag](https://drive.google.com/open?id=10t9H1u8pMGDOI6Q2w2uezEq5Ib-Z8tLz) to YOUR_DATASET_FOLDER.
 Open four terminals, run vins odometry, visual loop closure(optional), rviz and play the bag file respectively. 
 Green path is VIO odometry; red path is odometry under visual loop closure.
@@ -72,17 +69,8 @@ Green path is VIO odometry; red path is odometry under visual loop closure.
     rosbag play YOUR_DATASET_FOLDER/car.bag
 ```
 
-<img src="https://github.com/HKUST-Aerial-Robotics/VINS-Fusion/blob/master/support_files/image/car_gif.gif" width = 430 height = 240  />
 
-
-## 6. Run with your devices 
-VIO is not only a software algorithm, it heavily relies on hardware quality. For beginners, we recommend you to run VIO with professional equipment, which contains global shutter cameras and hardware synchronization.
-
-### 6.1 Configuration file
-Write a config file for your device. You can take config files of EuRoC and KITTI as the example. 
-
-
-## 7. Docker Support
+## 5. Docker Support
 To further facilitate the building process, we add docker in our code. Docker environment is like a sandbox, thus makes our code environment-independent. To run with docker, first make sure [ros](http://wiki.ros.org/ROS/Installation) and [docker](https://docs.docker.com/install/linux/docker-ce/ubuntu/) are installed on your machine. Then add your account to `docker` group by `sudo usermod -aG docker $YOUR_USER_NAME`. **Relaunch the terminal or logout and re-login if you get `Permission denied` error**, type:
 ```
 cd ~/catkin_ws/src/VINS-Fusion/docker
@@ -110,10 +98,10 @@ Script `run.sh` can take several flags and arguments. Flag `-k` means KITTI, `-l
 In Euroc cases, you need open another terminal and play your bag file. If you need modify the code, simply re-run `./run.sh` with proper auguments after your changes.
 
 
-## 8. Acknowledgements
-We use [ceres solver](http://ceres-solver.org/) for non-linear optimization and [DBoW2](https://github.com/dorian3d/DBoW2) for loop detection, a generic [camera model](https://github.com/hengli/camodocal) and [GeographicLib](https://geographiclib.sourceforge.io/).
+## 6. Acknowledgements
+We use [VINS-Fusion](https://github.com/HKUST-Aerial-Robotics/VINS-Fusion) as the framework, [ceres solver](http://ceres-solver.org/) for non-linear optimization and [DBoW2](https://github.com/dorian3d/DBoW2) for loop detection, a generic [camera model](https://github.com/hengli/camodocal) and [GeographicLib](https://geographiclib.sourceforge.io/). The pre-trained weights we adopt are from [SuperPoint](https://github.com/magicleap/SuperPointPretrainedNetwork) and [SuperGlue](https://github.com/magicleap/SuperGluePretrainedNetwork).
 
-## 9. License
+## 7. License
 The source code is released under [GPLv3](http://www.gnu.org/licenses/) license.
 
 We are still working on improving the code reliability. For any technical issues, please contact Tong Qin <qintonguavATgmail.com>.
