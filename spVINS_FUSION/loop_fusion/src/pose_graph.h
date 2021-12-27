@@ -96,7 +96,10 @@ private:
 	ros::Publisher pub_pg_path;
 	ros::Publisher pub_base_path;
 	ros::Publisher pub_pose_graph;
+	ros::Publisher pub_pose_graph_path;
 	ros::Publisher pub_path[10];
+
+	std::ofstream myfile;
 };
 
 template <typename T> inline

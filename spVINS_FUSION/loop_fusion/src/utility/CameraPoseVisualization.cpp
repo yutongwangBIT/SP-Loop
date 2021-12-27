@@ -36,6 +36,9 @@ CameraPoseVisualization::CameraPoseVisualization(float r, float g, float b, floa
     m_optical_center_connector_color.a = a;
     LOOP_EDGE_NUM = 20;
     tmp_loop_edge_num = 1;
+    p_last.x() = 0;
+    p_last.y() = 0;
+    p_last.z() = 0;
 }
 
 void CameraPoseVisualization::setImageBoundaryColor(float r, float g, float b, float a) {
@@ -95,10 +98,10 @@ void CameraPoseVisualization::add_loopedge(const Eigen::Vector3d& p0, const Eige
     marker.lifetime = ros::Duration();
     //marker.scale.x = 0.4;
     marker.scale.x = 0.02;
-    marker.color.r = 1.0f;
-    //marker.color.g = 1.0f;
-    //marker.color.b = 1.0f;
-    marker.color.a = 1.0;
+    marker.color.r = 0.9f;
+    marker.color.g = 0.66f;
+    marker.color.b = 0.26f;
+    marker.color.a = 1.0; 
 
     geometry_msgs::Point point0, point1;
 
@@ -110,6 +113,32 @@ void CameraPoseVisualization::add_loopedge(const Eigen::Vector3d& p0, const Eige
 
     m_markers.push_back(marker);
 }
+
+void CameraPoseVisualization::add_path(const geometry_msgs::Point& p0, const geometry_msgs::Point& p1){
+    
+    visualization_msgs::Marker marker;
+
+    marker.ns = m_marker_ns;
+    marker.id = m_markers_path.size() + 1;
+    //tmp_loop_edge_num++;
+    //if(tmp_loop_edge_num >= LOOP_EDGE_NUM)
+    //  tmp_loop_edge_num = 1;
+    marker.type = visualization_msgs::Marker::LINE_STRIP;
+    marker.action = visualization_msgs::Marker::ADD;
+    marker.lifetime = ros::Duration();
+    //marker.scale.x = 0.4;
+    marker.scale.x = 0.02;
+    marker.color.r = 0.0f;
+    marker.color.g = 0.5f;
+    marker.color.b = 0.78f;
+    marker.color.a = 1.0; 
+
+    marker.points.push_back(p0);
+    marker.points.push_back(p1);
+
+    m_markers_path.push_back(marker);
+}
+
 
 
 void CameraPoseVisualization::add_pose(const Eigen::Vector3d& p, const Eigen::Quaterniond& q) {
@@ -223,6 +252,20 @@ void CameraPoseVisualization::publish_by( ros::Publisher &pub, const std_msgs::H
 	}
   
 	pub.publish(markerArray_msg);
+}
+void CameraPoseVisualization::publish_by_path( ros::Publisher &pub, const nav_msgs::Path& path) {
+    m_markers_path.clear();
+    for(size_t i=0;i<path.poses.size()-1;i++){
+        geometry_msgs::Point p0 = path.poses[i].pose.position;
+        geometry_msgs::Point p1 = path.poses[i+1].pose.position;
+        add_path(p0,p1);
+    }
+    visualization_msgs::MarkerArray markerArray_msg_path;
+    for(auto& marker : m_markers_path) {
+		marker.header = path.header;
+		markerArray_msg_path.markers.push_back(marker);
+	}
+    pub.publish(markerArray_msg_path);
 }
 
 void CameraPoseVisualization::publish_image_by( ros::Publisher &pub, const std_msgs::Header &header ) {

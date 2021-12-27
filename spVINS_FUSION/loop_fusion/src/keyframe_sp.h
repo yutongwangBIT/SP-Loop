@@ -12,8 +12,9 @@
 #include "parameters.h"
 #include "ThirdParty/DBoW3/DBoW3.h"
 #include "SuperGlue.h"
-
+#include "pnp_factor.h"
 #define MIN_LOOP_NUM 25
+#define USE_TRIANGULATE_FACTOR true
 
 using namespace Eigen;
 using namespace std;
@@ -28,7 +29,7 @@ class KeyFrameSP
 public:
 	KeyFrameSP(double _time_stamp, int _index, Vector3d &_vio_T_w_i, Matrix3d &_vio_R_w_i, cv::Mat &_image,
 			 vector<cv::Point3f> &_point_3d, vector<cv::Point2f> &_point_2d_uv, vector<cv::Point2f> &_point_2d_normal, 
-			 vector<double> &_point_id, SPDetector* _sp, SPGlue* _sp_glue, int _sequence);
+			 vector<double> &_point_id, SPDetector* _sp, SPGlue* _sp_glue, int _sequence, std::shared_ptr<SuperPointNet> net_);
 	KeyFrameSP(double _time_stamp, int _index, Vector3d &_vio_T_w_i, Matrix3d &_vio_R_w_i, Vector3d &_T_w_i, Matrix3d &_R_w_i,
 			 cv::Mat &_image, int _loop_index, Eigen::Matrix<double, 8, 1 > &_loop_info,
 			 vector<cv::KeyPoint> &_keypoints, vector<cv::KeyPoint> &_keypoints_norm, cv::Mat &_descriptors);
@@ -41,8 +42,8 @@ public:
 
 	void extractSuperPoints();
 	void extractWindowPoints();
-	void computeWindowPoints();
 	bool findConnection(KeyFrameSP* old_kf);
+	int findConnection2(KeyFrameSP* old_kf);
 
 	Eigen::Vector3d getLoopRelativeT();
 	double getLoopRelativeYaw();
@@ -50,6 +51,9 @@ public:
 
 	void float2int_descriptors();
 	void binarize_descriptors();
+
+	void triangulatePoint(Eigen::Matrix<double, 3, 4> &Pose0, Eigen::Matrix<double, 3, 4> &Pose1,
+                        Eigen::Vector2d &point0, Eigen::Vector2d &point1, Eigen::Vector3d &point_3d);
 
 	double time_stamp; 
 	int index;
@@ -75,6 +79,7 @@ public:
 	vector<cv::KeyPoint> window_keypoints;
 	cv::Mat descriptors; //float n*256
 	cv::Mat descriptors_converted; //int
+	cv::Mat compressed_descriptors;
 	cv::Mat window_descriptors;
 	bool has_fast_point;
 	int sequence;
@@ -91,11 +96,12 @@ private:
 	cv::Size img_size;
 	void draw();
 	void drawLoopMatch(KeyFrameSP* old_kf, vector<cv::Point2f> matched_2d_old, 
-                      vector<cv::Point2f> matched_2d_cur, vector<float> matched_scores, float rela_t=0.0, float rela_y=0.0);
-	void computeWindowPointsAfter(vector<cv::Point2f> matched_2d_cur, vector<uchar> &status);
+                      vector<cv::Point2f> matched_2d_cur, vector<float> matched_scores, float rela_t, float rela_y,float rela_p,float rela_r, string name);
 	void PnPRANSAC(const vector<cv::Point2f> &matched_2d_old_norm,
 	               const std::vector<cv::Point3f> &matched_3d,
 	               std::vector<uchar> &status,
 	               Eigen::Vector3d &PnP_T_old, Eigen::Matrix3d &PnP_R_old);
+
+	std::shared_ptr<SuperPointNet> net;
 };
 

@@ -1,0 +1,40 @@
+<?xml version="1.0"?>
+<launch>
+
+
+    <!-- ######### Enable the automatic change to new dataset ########### -->
+    <arg name="autorun"     default = "false" />
+
+    <!-- log direction for the vis aid -->
+    <arg name="log_dir" default="/home/$(env USER)/" />
+
+
+    <!-- ######### Choose the dataset ################################### -->
+    <arg name="bag_file" default = "/home/yutong/Rosbags/self/cut.bag" />
+
+
+    <!--  node -->
+    <node respawn="true" pkg="loop_fusion" type="sp_loop_fusion_node" name="sp_loop_fusion"
+            args="$(find vins_estimator)/../config/realsense_d435i/realsense_stereo_imu_config.yaml" output="screen">
+            <param name="pose_graph_save_path" value="$(arg log_dir)/vins_ba_"/>
+    </node>
+
+    <arg name="node_start_delay" default="20.0" />  
+    <node respawn="true" pkg="vins_estimator" type="vins_node" name="vins_estimator"
+            args="$(find vins_estimator)/../config/realsense_d435i/realsense_stereo_imu_config.yaml"
+            launch-prefix="bash -c 'sleep $(arg node_start_delay); $0 $@' "
+            output="screen"> </node>
+
+    <!-- Visualization node -->
+    <node pkg="rviz" type="rviz" name="rviz" respawn="true"
+          args="-d $(find vins_estimator)/../config/vins_rviz_config.rviz" />
+
+    <!-- Static transform for vizualization -->
+    <node pkg="tf" type="static_transform_publisher" name="world_vio_init_pub" args="0 0 0 0 0 0 1 world vio_init 1" />
+
+    <!-- ######### Play the dataset ###################################### -->
+    <param name ="/use_sim_time" value="true"/>
+    <node required="$(arg autorun)" pkg="rosbag" type="play" name="rosbag_play"
+          args="-r 1  $(arg bag_file)" output="log" launch-prefix="bash -c 'sleep $(arg node_start_delay); $0 $@' "/>
+
+</launch>

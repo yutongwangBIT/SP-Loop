@@ -33,5 +33,6 @@ extern int ROW;
 extern int COL;
 extern std::string VINS_RESULT_PATH;
 extern int DEBUG_IMAGE;
+extern std::string EVA_METHOD;
 
 

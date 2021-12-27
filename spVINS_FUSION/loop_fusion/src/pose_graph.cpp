@@ -27,6 +27,7 @@ PoseGraph::PoseGraph()
     sequence_loop.push_back(0);
     base_sequence = 1;
     use_imu = 0;
+    myfile.open ("/home/yutong/spVINS_ws/results/loop_img/vins/vins_bow_loop_MH4.txt");
 }
 
 PoseGraph::~PoseGraph()
@@ -39,6 +40,7 @@ void PoseGraph::registerPub(ros::NodeHandle &n)
     pub_pg_path = n.advertise<nav_msgs::Path>("pose_graph_path", 1000);
     pub_base_path = n.advertise<nav_msgs::Path>("base_path", 1000);
     pub_pose_graph = n.advertise<visualization_msgs::MarkerArray>("pose_graph", 1000);
+    pub_pose_graph_path = n.advertise<visualization_msgs::MarkerArray>("marker_path", 1000);
     for (int i = 1; i < 10; i++)
         pub_path[i] = n.advertise<nav_msgs::Path>("path_" + to_string(i), 1000);
 }
@@ -179,24 +181,7 @@ void PoseGraph::addKeyFrame(KeyFrame* cur_kf, bool flag_detect_loop)
     path[sequence_cnt].poses.push_back(pose_stamped);
     path[sequence_cnt].header = pose_stamped.header;
 
-    /*if (SAVE_LOOP_PATH)
-    {
-        ofstream loop_path_file(VINS_RESULT_PATH, ios::app);
-        loop_path_file.setf(ios::fixed, ios::floatfield);
-        loop_path_file.precision(0);
-        loop_path_file << cur_kf->time_stamp * 1e9 << ",";
-        loop_path_file.precision(5);
-        loop_path_file  << P.x() << ","
-              << P.y() << ","
-              << P.z() << ","
-              << Q.w() << ","
-              << Q.x() << ","
-              << Q.y() << ","
-              << Q.z() << ","
-              << endl;
-        loop_path_file.close();
-    }*/
-    if (SAVE_LOOP_PATH)
+    if (SAVE_LOOP_PATH && EVA_METHOD=="rpg")
     {
         ofstream loop_path_file(VINS_RESULT_PATH, ios::app);
         loop_path_file.setf(ios::fixed, ios::floatfield);
@@ -204,13 +189,30 @@ void PoseGraph::addKeyFrame(KeyFrame* cur_kf, bool flag_detect_loop)
         loop_path_file << cur_kf->time_stamp << " ";
         loop_path_file.precision(5);
         loop_path_file  << P.x() << " "
-              << P.y() << " "
-              << P.z() << " "
-              << Q.w() << " "
-              << Q.x() << " "
-              << Q.y() << " "
-              << Q.z()
-              << endl;
+            << P.y() << " "
+            << P.z() << " "
+            << Q.x() << " "
+            << Q.y() << " "
+            << Q.z() << " "
+            << Q.w() 
+            << endl;
+        loop_path_file.close();
+    }
+    else if (SAVE_LOOP_PATH && EVA_METHOD=="evo")
+    {
+        ofstream loop_path_file(VINS_RESULT_PATH, ios::app);
+        loop_path_file.setf(ios::fixed, ios::floatfield);
+        loop_path_file.precision(4);
+        loop_path_file << cur_kf->time_stamp << " ";
+        loop_path_file.precision(5);
+        loop_path_file  << P.x() << " "
+                << P.y() << " "
+                << P.z() << " "
+                << Q.w() << " "
+                << Q.x() << " "
+                << Q.y() << " "
+                << Q.z()
+                << endl;
         loop_path_file.close();
     }
     //draw local connection
@@ -251,7 +253,7 @@ void PoseGraph::addKeyFrame(KeyFrame* cur_kf, bool flag_detect_loop)
         }
     }
     //posegraph_visualization->add_pose(P + Vector3d(VISUALIZATION_SHIFT_X, VISUALIZATION_SHIFT_Y, 0), Q);
-
+   // posegraph_visualization->add_path(P + Vector3d(VISUALIZATION_SHIFT_X, VISUALIZATION_SHIFT_Y, 0));
 	keyframelist.push_back(cur_kf);
     publish();
 	m_keyframelist.unlock();
@@ -398,6 +400,7 @@ int PoseGraph::detectLoop(KeyFrame* keyframe, int frame_index)
                 if(frame_index>150){
                     std::string image_path = "/home/yutong/spVINS_ws/results/loop_img/vins/" + to_string(frame_index) + "_loop_result.png";
                     cv::imwrite(image_path.c_str(), loop_result);
+                    myfile << frame_index <<","<<rit->Score << ",F" << std::endl;
                 }
             //}
         }
@@ -436,7 +439,7 @@ int PoseGraph::detectLoop(KeyFrame* keyframe, int frame_index)
         cv::waitKey(20);
     }
 
-    if (find_loop && frame_index > 50)
+    if (find_loop && frame_index > 130)
     {
         int min_index = -1;
         for (unsigned int i = 0; i < ret.size(); i++)
@@ -861,24 +864,24 @@ void PoseGraph::updatePath()
             path[(*it)->sequence].header = pose_stamped.header;
         }
 
-        /*if (SAVE_LOOP_PATH)
+        if (SAVE_LOOP_PATH && EVA_METHOD=="rpg")
         {
             ofstream loop_path_file(VINS_RESULT_PATH, ios::app);
             loop_path_file.setf(ios::fixed, ios::floatfield);
-            loop_path_file.precision(0);
-            loop_path_file << (*it)->time_stamp * 1e9 << ",";
+            loop_path_file.precision(4);
+            loop_path_file << (*it)->time_stamp << " ";
             loop_path_file.precision(5);
-            loop_path_file  << P.x() << ","
-                  << P.y() << ","
-                  << P.z() << ","
-                  << Q.w() << ","
-                  << Q.x() << ","
-                  << Q.y() << ","
-                  << Q.z() << ","
-                  << endl;
+            loop_path_file  << P.x() << " "
+                << P.y() << " "
+                << P.z() << " "
+                << Q.x() << " "
+                << Q.y() << " "
+                << Q.z() << " "
+                << Q.w() 
+                << endl;
             loop_path_file.close();
-        }*/
-        if (SAVE_LOOP_PATH)
+        }
+        else if (SAVE_LOOP_PATH && EVA_METHOD=="evo")
         {
             ofstream loop_path_file(VINS_RESULT_PATH, ios::app);
             loop_path_file.setf(ios::fixed, ios::floatfield);
@@ -1132,6 +1135,7 @@ void PoseGraph::publish()
             pub_pg_path.publish(path[i]);
             pub_path[i].publish(path[i]);
             posegraph_visualization->publish_by(pub_pose_graph, path[sequence_cnt].header);
+            posegraph_visualization->publish_by_path(pub_pose_graph_path, path[i]);
         }
     }
     pub_base_path.publish(base_path);

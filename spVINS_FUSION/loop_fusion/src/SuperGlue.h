@@ -12,6 +12,7 @@
 #include "opencv2/imgproc/imgproc.hpp"
 #include <c10/cuda/CUDAStream.h>
 #include <ATen/cuda/CUDAContext.h>
+#include <numeric> 
 
 
 #ifdef EIGEN_MPL2_ONLY
@@ -56,7 +57,7 @@ struct SuperGlueNet : torch::nn::Module {
 };
 class SPGlue {
 public:
-    SPGlue(std::string _weights_path, float _match_threshold, bool _cuda);
+    SPGlue(std::string _weights_path, float _match_threshold,float _sp_glue_score_thres, bool _cuda);
     std::vector<cv::DMatch> match(std::vector<cv::KeyPoint> pts_1, std::vector<cv::KeyPoint> pts_2, cv::Mat descriptors_1, cv::Mat descriptors_2);
     void match(std::vector<cv::KeyPoint> pts_1, std::vector<cv::KeyPoint> pts_2, cv::Mat descriptors_1, 
                            cv::Mat descriptors_2, std::vector<cv::KeyPoint> pts_1_norm, std::vector<cv::KeyPoint> pts_2_norm, std::vector<cv::Point2f> &matched_2d_old,
@@ -72,6 +73,7 @@ private:
     std::shared_ptr<SuperGlueNet> net;
     std::string weights_path;
     float match_threshold;
+    float sp_glue_score_thres;
     bool cuda;
     torch::DeviceType device_type;
 };
@@ -101,22 +103,28 @@ struct SuperPointNet : torch::nn::Module {
   torch::nn::Conv2d convDa;
   torch::nn::Conv2d convDb;
 
+  bool use_nms;
+
 };
 
 
 class SPDetector {
 public:
-    SPDetector(std::string _weights_path, int _nms_dist=4, float _conf_thresh=0.1,  bool _cuda=false);
-    bool detect(cv::Mat img, std::vector<cv::KeyPoint>& kpts, cv::Mat& descriptors, const int num_pts);
-    bool detectWindow(cv::Mat img, std::vector<cv::Point2f>& pts, std::vector<cv::KeyPoint>& kpts, cv::Mat& descriptors);
+    SPDetector(torch::DeviceType device_type_, int _nms_dist=4, float _conf_thresh=0.1,  bool _cuda=false);
+    bool detect(std::shared_ptr<SuperPointNet> net,cv::Mat img, std::vector<cv::KeyPoint>& kpts, cv::Mat& descriptors, const int num_pts);
+    bool detect(std::shared_ptr<SuperPointNet> net,cv::Mat img, std::vector<cv::KeyPoint>& pts, cv::Mat& descriptors);
+    bool detectWindow(std::shared_ptr<SuperPointNet> net,cv::Mat img, std::vector<cv::Point2f>& pts, std::vector<cv::KeyPoint>& kpts, cv::Mat& descriptors);
+    bool detect(std::shared_ptr<SuperPointNet> net,cv::Mat img, std::vector<cv::Point2f>& window_pts, std::vector<cv::KeyPoint>& window_kpts,
+             cv::Mat& window_descriptors, std::vector<cv::KeyPoint>& kpts, cv::Mat& descriptors, const int num_pts);
 private:
-    std::shared_ptr<SuperPointNet> net;
-    std::string weights_path;
+    //std::shared_ptr<SuperPointNet> net;
+    //std::string weights_path;
     int nms_dist;
     float conf_thresh;
     float nn_thresh;
     bool cuda;
     torch::DeviceType device_type;
+    
 };
 
 

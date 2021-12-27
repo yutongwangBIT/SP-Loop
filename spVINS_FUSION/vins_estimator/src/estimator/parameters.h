@@ -68,6 +68,7 @@ extern int USE_SP;
 extern std::string SP_PATH;
 extern float SP_THRES;
 extern int SP_NMS_DIST;
+extern std::string EVA_METHOD;
 
 void readParameters(std::string config_file);
 

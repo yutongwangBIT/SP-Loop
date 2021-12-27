@@ -50,6 +50,7 @@ int USE_SP;
 std::string SP_PATH;
 float SP_THRES;
 int SP_NMS_DIST;
+std::string EVA_METHOD;
 
 template <typename T>
 T readParam(ros::NodeHandle &n, std::string name)
@@ -112,7 +113,7 @@ void readParameters(std::string config_file)
     MIN_PARALLAX = MIN_PARALLAX / FOCAL_LENGTH;
 
     fsSettings["output_path"] >> OUTPUT_FOLDER;
-    VINS_RESULT_PATH = OUTPUT_FOLDER + "/vio.csv";
+    VINS_RESULT_PATH = OUTPUT_FOLDER + "/vio.txt";
     std::cout << "result path " << VINS_RESULT_PATH << std::endl;
     std::ofstream fout(VINS_RESULT_PATH, std::ios::out);
     fout.close();
@@ -208,6 +209,7 @@ void readParameters(std::string config_file)
         std::cout<<"sp_path:"<<SP_PATH<<std::endl;
         SP_THRES = fsSettings["sp_thres"];
         SP_NMS_DIST = fsSettings["sp_nms_dist"];
+        fsSettings["eva_method"]>>EVA_METHOD;
     //}
         
 

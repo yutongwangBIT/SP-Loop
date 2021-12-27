@@ -53,6 +53,7 @@ int VISUALIZATION_SHIFT_Y;
 int ROW;
 int COL;
 int DEBUG_IMAGE;
+std::string EVA_METHOD;
 
 camodocal::CameraPtr m_camera;
 Eigen::Vector3d tic;
@@ -73,6 +74,8 @@ int SP_NMS_DIST;
 SPDetector* sp;
 SPGlue* sp_glue;
 float SP_GLUE_THRES;
+float SP_GLUE_SCORE_THRES;
+std::shared_ptr<SuperPointNet> net(new SuperPointNet(), std::default_delete<SuperPointNet>());
 
 CameraPoseVisualization cameraposevisual(1, 0, 0, 1);
 Eigen::Vector3d last_t(-100, -100, -100);
@@ -399,16 +402,25 @@ void process()
                 }
     
                 KeyFrameSP* keyframe = new KeyFrameSP(pose_msg->header.stamp.toSec(), frame_index, T, R, image,
-                                   point_3d, point_2d_uv, point_2d_normal, point_id, sp, sp_glue, sequence); 
+                                   point_3d, point_2d_uv, point_2d_normal, point_id, sp, sp_glue, sequence, net); 
                 std_msgs::Header header = image_msg->header;
                 //pubCompImage(keyframe->compareKpts, header);  
                 m_process.lock();
                 start_flag = 1;
-                posegraph_sp.addKeyFrameSP(keyframe, 1);
-                pubCompImage(keyframe->compareKpts, header);  
-                m_process.unlock();
                 frame_index++;
                 last_t = T;
+                if(keyframe->window_keypoints.size()>3){
+                    TicToc tmp_t;
+                    TicToc t_add;
+                    posegraph_sp.addKeyFrameSP(keyframe, 1);
+                    printf("add kf time: %f", t_add.toc());
+                    pubCompImage(keyframe->compareKpts, header); 
+                }
+                else{
+                    std::cout<<"NO KPTS????"<<std::endl;
+                }
+                m_process.unlock();
+                
             }
         }
         std::chrono::milliseconds dura(5);
@@ -476,9 +488,10 @@ int main(int argc, char **argv)
     ROW = fsSettings["image_height"];
     COL = fsSettings["image_width"];
     std::string pkg_path = ros::package::getPath("loop_fusion");
-    string vocabulary_file = pkg_path + "/../support_files/voc_binary.yml.gz";
+    string vocabulary_file = pkg_path + "/../support_files/voc_binary_tartan_8u_6.yml.gz";
     cout << "vocabulary_file" << vocabulary_file << endl;
     posegraph_sp.loadVocabulary(vocabulary_file);
+    ROS_INFO("Vocabulary LOADED!");
 
  //   BRIEF_PATTERN_FILE = pkg_path + "/../support_files/brief_pattern.yml";
   //  cout << "BRIEF_PATTERN_FILE" << BRIEF_PATTERN_FILE << endl;
@@ -495,9 +508,10 @@ int main(int argc, char **argv)
     fsSettings["pose_graph_save_path"] >> POSE_GRAPH_SAVE_PATH;
     fsSettings["output_path"] >> VINS_RESULT_PATH;
     fsSettings["save_image"] >> DEBUG_IMAGE;
+    fsSettings["eva_method"] >> EVA_METHOD;
 
     LOAD_PREVIOUS_POSE_GRAPH = fsSettings["load_previous_pose_graph"];
-    VINS_RESULT_PATH = VINS_RESULT_PATH + "/sp_loop_eurocMH4.txt";
+    VINS_RESULT_PATH = VINS_RESULT_PATH + "/sp_loop_d435i.txt";
     std::ofstream fout(VINS_RESULT_PATH, std::ios::out);
     fout.close();
 
@@ -512,9 +526,24 @@ int main(int argc, char **argv)
     float SP_THRES = fsSettings["sp_thres_loop"];
     int SP_NMS_DIST = fsSettings["sp_nms_dist_loop"];
     float SP_GLUE_THRES = fsSettings["sp_glue_thres"];
+    float SP_GLUE_SCORE_THRES = fsSettings["sp_glue_score_thres"];
     //LOAD Models
-    sp = new SPDetector(SP_PATH, SP_NMS_DIST, SP_THRES,true);
-    sp_glue = new SPGlue(SPGLUE_PATH, SP_GLUE_THRES,true);
+   // std::shared_ptr<SuperPointNet> net(new SuperPointNet(), std::default_delete<SuperPointNet>());
+    torch::load(net, SP_PATH); 
+    torch::DeviceType device_type;
+    //bool use_cuda = torch::cuda::is_available();
+    //if (use_cuda){
+        device_type = torch::kCUDA;
+        std::cout<<"USE CUDA!"<<std::endl;
+    //}
+    //else
+        //device_type = torch::kCPU;
+    torch::Device device0(device_type);
+    net->to(device0);
+    std::cout<<"SPDetector weight Loaded"<<std::endl;
+    sp = new SPDetector(device_type, SP_NMS_DIST, SP_THRES,true);
+
+    sp_glue = new SPGlue(SPGLUE_PATH, SP_GLUE_THRES, SP_GLUE_SCORE_THRES,true);
     ROS_INFO("SP MODELS LOADED!");
 
     fsSettings.release();

@@ -173,7 +173,7 @@ void Estimator::inputImage(double t, const cv::Mat &_img, const cv::Mat &_img1)
         featureFrame = featureTracker.trackImage(t, descriptors_per_feature_id, _img);
     else
         featureFrame = featureTracker.trackImage(t, descriptors_per_feature_id, _img, _img1);*/
-    //printf("featureTracker time: %f\n", featureTrackerTime.toc());
+    printf("featureTracker time: %f\n", featureTrackerTime.toc());
     
     if (SHOW_TRACK)
     {

@@ -11,6 +11,15 @@
 
 #include "keyframe.h"
 
+template <typename T>
+std::string to_string_with_precision(const T a_value, const int n = 6)
+{
+    std::ostringstream out;
+    out.precision(n);
+    out << std::fixed << a_value;
+    return out.str();
+}
+
 template <typename Derived>
 static void reduceVector(vector<Derived> &v, vector<uchar> status)
 {
@@ -270,7 +279,6 @@ void KeyFrame::PnPRANSAC(const vector<cv::Point2f> &matched_2d_old_norm,
 
 }
 
-
 bool KeyFrame::findConnection(KeyFrame* old_kf)
 {
 	TicToc tmp_t;
@@ -309,7 +317,7 @@ bool KeyFrame::findConnection(KeyFrame* old_kf)
 	        path << "/home/yutong/spVINS_ws/results/match_img/vins/"
 	                << index << "-"
 	                << old_kf->index << "-" << "0raw_point.jpg";
-	        cv::imwrite( path.str().c_str(), loop_match_img);
+	        //cv::imwrite( path.str().c_str(), loop_match_img);
 	    }
 	#endif
 	//printf("search by des\n");
@@ -354,7 +362,7 @@ bool KeyFrame::findConnection(KeyFrame* old_kf)
 	        path <<  "/home/yutong/spVINS_ws/results/match_img/vins/"
 	                << index << "-"
 	                << old_kf->index << "-" << "1descriptor_match.jpg";
-	        cv::imwrite( path.str().c_str(), loop_match_img);
+	        //cv::imwrite( path.str().c_str(), loop_match_img);
 	        /*
 	        path1 <<  "/home/tony-ws1/raw_data/loop_image/"
 	                << index << "-"
@@ -410,7 +418,7 @@ bool KeyFrame::findConnection(KeyFrame* old_kf)
 	        path <<  "/home/tony-ws1/raw_data/loop_image/"
 	                << index << "-"
 	                << old_kf->index << "-" << "2fundamental_match.jpg";
-	        cv::imwrite( path.str().c_str(), loop_match_img);
+	        //cv::imwrite( path.str().c_str(), loop_match_img);
 	    }
 	#endif
 	Eigen::Vector3d PnP_T_old;
@@ -462,14 +470,14 @@ bool KeyFrame::findConnection(KeyFrame* old_kf)
 	            putText(notation, "previous frame: " + to_string(old_kf->index) + "  sequence: " + to_string(old_kf->sequence), cv::Point2f(20 + COL + gap, 30), cv::FONT_HERSHEY_SIMPLEX, 1, cv::Scalar(255), 3);
 	            cv::vconcat(notation, loop_match_img, loop_match_img);
 
-	            /*if ((int)matched_2d_cur.size() > MIN_LOOP_NUM)
+	            if ((int)matched_2d_cur.size() > MIN_LOOP_NUM)
 	            {
 					ostringstream path;
-					path <<  "/home/yutong/spVINS_ws/results/match_img/vins_loop/"
+					path <<  "/home/yutong/spVINS_ws/results/match_img/vins_d435i/"
 							<< index << "-"
 							<< old_kf->index << "-" << "3pnp_match.jpg";
 					cv::imwrite( path.str().c_str(), loop_match_img);
-				}*/
+				}
 	            
 	            
 	            if ((int)matched_2d_cur.size() > MIN_LOOP_NUM)
@@ -496,9 +504,10 @@ bool KeyFrame::findConnection(KeyFrame* old_kf)
 	    //printf("PNP relative\n");
 	    cout << "pnp relative_t " << relative_t.transpose() << endl;
 	    cout << "pnp relative_yaw " << relative_yaw << endl;
-	    if (abs(relative_yaw) < 30.0 && relative_t.norm() < 20.0)
-	    {
-
+		//if (abs(relative_yaw) < 60.0 && relative_t.norm() < 20.0)
+		//if ((abs(relative_yaw) > 30.0 || relative_t.norm() > 2.5) && abs(relative_yaw) < 60.0 && relative_t.norm() < 20)
+		if (abs(relative_yaw) < 60.0 && relative_t.norm() < 20.0)
+		{
 	    	has_loop = true;
 	    	loop_index = old_kf->index;
 	    	loop_info << relative_t.x(), relative_t.y(), relative_t.z(),
@@ -529,11 +538,12 @@ void KeyFrame::drawLoopMatch(KeyFrame* old_kf, vector<cv::Point2f> matched_2d_ol
 		p2.x += 752;
 		cv::circle(compareKpts, p1, 2, cv::Scalar(0, 255, 0), 2);
 		cv::circle(compareKpts, p2, 2, cv::Scalar(0, 255, 0), 2);
-		cv::line(compareKpts, p1, p2, cv::Scalar(255, 0, 0), 1);
+		cv::line(compareKpts, p1, p2, cv::Scalar(255, 0, 0), 1, cv::LINE_AA);
 	}
-	putText(compareKpts, "relative t norm:" + to_string(rela_t) + "yaw:" + to_string(rela_y), cv::Point2f(30, 30), cv::FONT_HERSHEY_SIMPLEX, 1, cv::Scalar(0, 255, 255));
+	//putText(compareKpts, "relative t norm:" + to_string(rela_t) + "yaw:" + to_string(rela_y), cv::Point2f(30, 30), cv::FONT_HERSHEY_SIMPLEX, 1, cv::Scalar(0, 255, 255));
+    putText(compareKpts, "relative translation:" + to_string_with_precision(rela_t,1) + ", yaw:" + to_string_with_precision(rela_y,1), cv::Point2f(30, 30), cv::FONT_HERSHEY_SIMPLEX, 1, cv::Scalar(0, 0, 255),3);
         
-	std::string image_path0 = "/home/yutong/spVINS_ws/results/match_img/vins_pnp/" + to_string(index) + "_match.png";
+	std::string image_path0 = "/home/yutong/spVINS_ws/results/match_img/vins_pnp_thres/" + to_string(index) + "_match.png";
     cv::imwrite(image_path0.c_str(), compareKpts);
 
 }

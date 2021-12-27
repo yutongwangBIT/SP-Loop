@@ -10,13 +10,13 @@
 
 
     <!-- ######### Choose the dataset ################################### -->
-    <arg name="bag_file" default = "/home/yutong/Rosbags/MH/MH_04_difficult.bag" />
+    <arg name="bag_file" default = "/home/yutong/Rosbags/MH/MH_05_difficult.bag" />
 
 
     <!-- VINS node -->
-    <node respawn="true" pkg="vins_estimator" type="vins_node" name="vins_estimator"
+    <!--node respawn="true" pkg="vins_estimator" type="vins_node" name="vins_estimator"
             args="$(find vins_estimator)/../config/euroc/euroc_stereo_config.yaml"
-            output="screen"> </node>
+            output="screen"> </node-->
 
     <node respawn="true" pkg="loop_fusion" type="sp_loop_fusion_node" name="sp_loop_fusion"
             args="$(find vins_estimator)/../config/euroc/euroc_stereo_config.yaml" output="screen">
@@ -26,6 +26,11 @@
             args="$(find vins_estimator)/../config/euroc/euroc_stereo_config.yaml" output="screen">
             <param name="pose_graph_save_path" value="$(arg log_dir)/vins_ba_"/>
     </node-->
+    <arg name="node_start_delay" default="20.0" />  
+    <node respawn="true" pkg="vins_estimator" type="vins_node" name="vins_estimator"
+            args="$(find vins_estimator)/../config/euroc/euroc_stereo_config.yaml"
+            launch-prefix="bash -c 'sleep $(arg node_start_delay); $0 $@' "
+            output="screen"> </node>
 
     <!-- Visualization node -->
     <node pkg="rviz" type="rviz" name="rviz" respawn="true"
@@ -37,6 +42,6 @@
     <!-- ######### Play the dataset ###################################### -->
     <param name ="/use_sim_time" value="true"/>
     <node required="$(arg autorun)" pkg="rosbag" type="play" name="rosbag_play"
-          args="-r 0.5 --start 25 --clock $(arg bag_file)" output="log"/>
+          args="-r 1  $(arg bag_file)" output="log" launch-prefix="bash -c 'sleep $(arg node_start_delay); $0 $@' "/>
 
 </launch>

@@ -17,6 +17,7 @@
 #include <Eigen/Geometry>
 #include <opencv2/opencv.hpp>
 #include "../parameters.h"
+#include <nav_msgs/Path.h>
 
 class CameraPoseVisualization {
 public:
@@ -37,8 +38,12 @@ public:
 	void add_loopedge(const Eigen::Vector3d& p0, const Eigen::Vector3d& p1);
 	//void add_image(const Eigen::Vector3d& T, const Eigen::Matrix3d& R, const cv::Mat &src);
 	void publish_image_by( ros::Publisher &pub, const std_msgs::Header &header);
+
+	void add_path(const geometry_msgs::Point& p0, const geometry_msgs::Point& p1);
+	void publish_by_path(ros::Publisher& pub, const nav_msgs::Path& path);
 private:
 	std::vector<visualization_msgs::Marker> m_markers;
+	std::vector<visualization_msgs::Marker> m_markers_path;
 	std_msgs::ColorRGBA m_image_boundary_color;
 	std_msgs::ColorRGBA m_optical_center_connector_color;
 	double m_scale;
@@ -55,4 +60,6 @@ private:
 	static const Eigen::Vector3d lt0 ;
 	static const Eigen::Vector3d lt1 ;
 	static const Eigen::Vector3d lt2 ;
+
+	Eigen::Vector3d p_last;
 };

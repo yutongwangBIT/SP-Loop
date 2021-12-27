@@ -56,6 +56,7 @@ int VISUALIZATION_SHIFT_Y;
 int ROW;
 int COL;
 int DEBUG_IMAGE;
+std::string EVA_METHOD;
 
 camodocal::CameraPtr m_camera;
 Eigen::Vector3d tic;
@@ -458,9 +459,10 @@ int main(int argc, char **argv)
     fsSettings["pose_graph_save_path"] >> POSE_GRAPH_SAVE_PATH;
     fsSettings["output_path"] >> VINS_RESULT_PATH;
     fsSettings["save_image"] >> DEBUG_IMAGE;
+    fsSettings["eva_method"] >> EVA_METHOD;
 
     LOAD_PREVIOUS_POSE_GRAPH = fsSettings["load_previous_pose_graph"];
-    VINS_RESULT_PATH = VINS_RESULT_PATH + "/vins_loop_eurocMH4.txt";
+    VINS_RESULT_PATH = VINS_RESULT_PATH + "/vins_loop_d435i.txt";
     std::ofstream fout(VINS_RESULT_PATH, std::ios::out);
     fout.close();
 

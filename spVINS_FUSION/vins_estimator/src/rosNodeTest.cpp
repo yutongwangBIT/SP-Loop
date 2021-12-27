@@ -29,7 +29,7 @@ queue<sensor_msgs::PointCloudConstPtr> feature_buf;
 queue<sensor_msgs::ImageConstPtr> img0_buf;
 queue<sensor_msgs::ImageConstPtr> img1_buf;
 std::mutex m_buf;
-//double time0_before;
+double time_last;
 
 void img0_callback(const sensor_msgs::ImageConstPtr &img_msg)
 {
@@ -126,8 +126,21 @@ void sync_process()
                 img0_buf.pop();
             }
             m_buf.unlock();
-            if(!image.empty())
-                estimator.inputImage(time, image);
+            
+            if(!image.empty()){
+                if(time-time_last>1){
+                ROS_INFO("time jump detected, restart estimation!");
+                estimator.clearState();
+                estimator.setParameter();
+                time_last = 10000000000000000;
+                }
+                else{
+                    //std::cout<<"time:"<<time<<std::endl;
+                    time_last = time;
+                    estimator.inputImage(time, image);
+                }
+            }
+                
         }
 
         std::chrono::milliseconds dura(2);
@@ -227,7 +240,7 @@ void cam_switch_callback(const std_msgs::BoolConstPtr &switch_msg)
 
 int main(int argc, char **argv)
 {
-    //time0_before = 0;
+    time_last = 10000000000000000;
     ros::init(argc, argv, "vins_estimator");
     ros::NodeHandle n("~");
     ros::console::set_logger_level(ROSCONSOLE_DEFAULT_NAME, ros::console::levels::Info);
