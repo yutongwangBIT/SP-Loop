@@ -16,10 +16,8 @@ Firstly, keyframes from VINS-VIO are processed to extract the required SuperPoin
 
 **Related Paper:**
 
-* **A Robust and Efficient Loop Closure Detection Approach for Hybrid Terrestrial and Aerial Vehicles**, Yutong Wang, Bin Xu, Wei Fan, Changle Xiang, xxx [pdf](xxx) 
+* **A Robust and Efficient Loop Closure Detection Approach for Hybrid Terrestrial and Aerial Vehicles**, Yutong Wang, Bin Xu, Wei Fan, Changle Xiang (submitted to RAL)
 
-
-*If you use SP-Loop for your academic research, please cite our related papers. [bib](https://github.com/HKUST-Aerial-Robotics/VINS-Fusion/blob/master/support_files/paper_bib.txt)*
 
 ## 1. Prerequisites
 ### 1.1 **Ubuntu** and **ROS**
@@ -31,7 +29,7 @@ ROS Melodic. [ROS Installation](http://wiki.ros.org/ROS/Installation)
 Follow [Ceres Installation](http://ceres-solver.org/installation.html).
 
 
-## 2. Build VINS-Fusion
+## 2. Build SP-Loop
 Clone the repository and catkin_make:
 ```
     cd ~/catkin_ws/src
