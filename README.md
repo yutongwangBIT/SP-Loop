@@ -1,11 +1,11 @@
 # SP-Loop
 ## A robust and effienct loop closure detection approach for hybrid terrestrial and aerial vehicles (HyTAVs)
 
-Our system is developed on the basis of the state-of-the-art [VINS-Fusion](https://github.com/HKUST-Aerial-Robotics/VINS-Fusion), which contains visual-inertial odometry (VINS-VIO), pose graph optimization (VINS-PGO), and loop closure detection (VINS-Loop). In this work, VINS-VIO and VINS-PGO are adopted, while our proposed loop closure detection approach is used to replace VINS-Loop to improve robustness against viewpoint changes. The flow diagram, illustrating three main stages and the pipeline, is shown as below:.
+Our system is developed on the basis of the state-of-the-art [VINS-Fusion](https://github.com/HKUST-Aerial-Robotics/VINS-Fusion), which contains visual-inertial odometry (vins_estimator), pose graph optimization, and loop closure detection (loop_fusion). In this work, our proposed loop closure detection approach is used to replace VINS-Loop to improve robustness against viewpoint changes. The original VINS-Loop also can be run and tested in our code. The flow diagram, illustrating three main stages and the pipeline, is shown as below:.
 
 <img src="https://github.com/yutongwangBIT/SP-Loop/blob/master/support_files/image/pipeline.jpg" width = 80% height = 80% />
 
-Firstly, keyframes from VINS-VIO are processed to extract the required SuperPoint descriptors. Secondly, a loop candidate is retrieved from the database based on the offline-trained visual vocabulary. Thirdly, the SuperGlue model is applied to find feature correspondences, which are then used in relative pose computation. Loop detection is finally predicted by examining the number of correspondences and the relative pose. 
+Firstly, keyframes from vins_estimator are processed to extract the required SuperPoint descriptors. Secondly, a loop candidate is retrieved from the database based on the offline-trained visual vocabulary. Thirdly, the SuperGlue model is applied to find feature correspondences, which are then used in relative pose computation. Loop detection is finally predicted by examining the number of correspondences and the relative pose. 
 
 **Features:**
 - visual loop closure detection approach robust against viewpoint differences
@@ -16,10 +16,8 @@ Firstly, keyframes from VINS-VIO are processed to extract the required SuperPoin
 
 **Related Paper:**
 
-* **A Robust and Efficient Loop Closure Detection Approach for Hybrid Terrestrial and Aerial Vehicles**, Yutong Wang, Bin Xu, Wei Fan, Changle Xiang, xxx [pdf](xxx) 
+* **A Robust and Efficient Loop Closure Detection Approach for Hybrid Terrestrial and Aerial Vehicles**, Yutong Wang, Bin Xu, Wei Fan, Changle Xiang (submitted to IEEE RAL)
 
-
-*If you use SP-Loop for your academic research, please cite our related papers. [bib](https://github.com/HKUST-Aerial-Robotics/VINS-Fusion/blob/master/support_files/paper_bib.txt)*
 
 ## 1. Prerequisites
 ### 1.1 **Ubuntu** and **ROS**
@@ -30,43 +28,57 @@ ROS Melodic. [ROS Installation](http://wiki.ros.org/ROS/Installation)
 ### 1.2. **Ceres Solver**
 Follow [Ceres Installation](http://ceres-solver.org/installation.html).
 
+### 1.3. **Libtorch**
+Libtorch can be compiled from source code, or you can simply download the precompiled versions. The latter is recommended. There are both CPU and GPU versions:
+* CPU version: we have tested with versions Libtorch1.1, 1.4 and 1.7. 1.7 may conflict with OPENCV during compilation. Libtorch 1.4 is recommended, which can be downloaded [here](https://download.pytorch.org/libtorch/cpu/libtorch-cxx11-abi-shared-with-deps-1.4.0%2Bcpu.zip). 
+* GPU version: we have tested with CUDA 10.1, CUDNN 7.6, [Libtorch1.4](https://download.pytorch.org/libtorch/cu101/libtorch-shared-with-deps-1.4.0.zip). The versions are determined according to Libtorch version. You can also check the compatibility of your GPU driver, CUDA and Libtorch online. 
 
-## 2. Build VINS-Fusion
+**Note**: after downloading, you should set your **own** path in the Cmakelists.txt of loop-fusion as follows:
+```
+set(Torch_DIR "$your own path$/libtorch/share/cmake/Torch")
+find_package(Torch REQUIRED)
+message(STATUS "Torch version is: ${Torch_VERSION}")
+```
+
+## 2. Build SP-Loop
 Clone the repository and catkin_make:
 ```
-    cd ~/catkin_ws/src
+    mkdir ~/catkin_ws/src/SP-Loop
+    cd ~/catkin_ws/src/SP-Loop
     git clone https://github.com/yutongwangBIT/SP-Loop.git
     cd ../
-    catkin_make
+    catkin build
     source ~/catkin_ws/devel/setup.bash
 ```
 (if you fail in this step, try to find another computer with clean system or reinstall Ubuntu and ROS)
 
 ## 3. EuRoC Example
 Download [EuRoC MAV Dataset](http://projects.asl.ethz.ch/datasets/doku.php?id=kmavvisualinertialdatasets) to YOUR_DATASET_FOLDER. Take MH_01 for example, you can run VINS-Fusion with three sensor types (monocular camera + IMU, stereo cameras + IMU and stereo cameras). 
-Open four terminals, run vins odometry, visual loop closure(optional), rviz and play the bag file respectively. 
-Green path is VIO odometry; red path is odometry under visual loop closure.
 
 ### 3.1 Single Session: Monocualr camera + IMU
-
+- Change pathes of weights (sp_path and spglue_path) to your own in ~/catkin_ws/src/SP-Loop/config/euroc/euroc_sp_loop.yaml
+- Change path of bag_file to your own in ~/catkin_ws/src/SP-Loop/vins_estimator/launch/run_euroc_bag.launch
 ```
-    roslaunch vins vins_rviz.launch
-    rosrun vins vins_node ~/catkin_ws/src/VINS-Fusion/config/euroc/euroc_mono_imu_config.yaml 
-    (optional) rosrun loop_fusion loop_fusion_node ~/catkin_ws/src/VINS-Fusion/config/euroc/euroc_mono_imu_config.yaml 
-    rosbag play YOUR_DATASET_FOLDER/MH_01_easy.bag
+    roslaunch vins_estimator run_euroc_bag.launch
 ```
 ### 3.2 Multisession:
-
+- Change pathes of weights (sp_path and spglue_path) to your own in ~/catkin_ws/src/SP-Loop/config/euroc/euroc_sp_loop.yaml
+```
+    roslaunch vins_estimator run_euroc_bag_multi.launch
+```
+play rosbags in sequence:
+```
+    rosbag play YOUR_DATASET_FOLDER/MH_01_easy.bag
+    rosbag play YOUR_DATASET_FOLDER/MH_02_easy.bag
+    rosbag play YOUR_DATASET_FOLDER/MH_03_medium.bag
+    rosbag play YOUR_DATASET_FOLDER/MH_04_difficult.bag
+    rosbag play YOUR_DATASET_FOLDER/MH_05_difficult.bag
+```
 
 ## 4. Real-world Data collected by a quad ducted-fan HyTAV
-Download [car bag](https://drive.google.com/open?id=10t9H1u8pMGDOI6Q2w2uezEq5Ib-Z8tLz) to YOUR_DATASET_FOLDER.
-Open four terminals, run vins odometry, visual loop closure(optional), rviz and play the bag file respectively. 
-Green path is VIO odometry; red path is odometry under visual loop closure.
+Download  to YOUR_DATASET_FOLDER.
 ```
     roslaunch vins vins_rviz.launch
-    rosrun vins vins_node ~/catkin_ws/src/VINS-Fusion/config/vi_car/vi_car.yaml 
-    (optional) rosrun loop_fusion loop_fusion_node ~/catkin_ws/src/VINS-Fusion/config/vi_car/vi_car.yaml 
-    rosbag play YOUR_DATASET_FOLDER/car.bag
 ```
 
 
