@@ -76,10 +76,8 @@ play rosbags in sequence:
 ```
 
 ## 4. Real-world Data collected by a quad ducted-fan HyTAV
-Download  to YOUR_DATASET_FOLDER.
-```
-    roslaunch vins vins_rviz.launch
-```
+
+For security reason, we will upload our real-world data later.
 
 
 ## 5. Acknowledgements
