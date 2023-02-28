@@ -3,7 +3,7 @@
 
 Our system is developed on the basis of the state-of-the-art [VINS-Fusion](https://github.com/HKUST-Aerial-Robotics/VINS-Fusion), which contains visual-inertial odometry (vins_estimator), pose graph optimization, and loop closure detection (loop_fusion). In this work, our proposed loop closure detection approach is used to replace VINS-Loop to improve robustness against viewpoint changes. The flow diagram, illustrating three main stages and the pipeline, is shown as below:.
 
-<img src="https://github.com/yutongwangBIT/SP-Loop/blob/master/support_files/image/pipeline2.png" width = 80% height = 80% />
+<img src="https://github.com/yutongwangBIT/SP-Loop/blob/master/support_files/image/online.png" width = 80% height = 80% />
 
 Firstly, keyframes from vins_estimator are processed to extract the required SuperPoint descriptors. Secondly, a loop candidate is retrieved from the database based on the offline-trained visual vocabulary. Thirdly, the SuperGlue model is applied to find feature correspondences, which are then used in relative pose computation. Loop detection is finally predicted by examining the number of correspondences and the relative pose. 
 
