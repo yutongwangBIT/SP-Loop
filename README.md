@@ -16,7 +16,7 @@ Firstly, keyframes from vins_estimator are processed to extract the required Sup
 
 **Related Paper:**
 
-* **A Robust and Efficient Loop Closure Detection Approach for Hybrid Terrestrial and Aerial Vehicles**, Yutong Wang, Bin Xu, Wei Fan, Changle Xiang (submitted to IEEE IROS)
+* Wang, Yutong, et al. "A Robust and Efficient Loop Closure Detection Approach for Hybrid Ground/Aerial Vehicles." Drones 7.2 (2023): 135.
 
 
 ## 1. Prerequisites
