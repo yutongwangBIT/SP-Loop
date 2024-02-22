@@ -1,9 +1,9 @@
 # SP-Loop
-## A robust and effienct loop closure detection approach for hybrid terrestrial and aerial vehicles (HyTAVs)
+## A Robust and Efficient Loop Closure Detection Approach for Hybrid Ground/Aerial Vehicles
 
-Our system is developed on the basis of the state-of-the-art [VINS-Fusion](https://github.com/HKUST-Aerial-Robotics/VINS-Fusion), which contains visual-inertial odometry (vins_estimator), pose graph optimization, and loop closure detection (loop_fusion). In this work, our proposed loop closure detection approach is used to replace VINS-Loop to improve robustness against viewpoint changes. The original VINS-Loop also can be run and tested in our code. The flow diagram, illustrating three main stages and the pipeline, is shown as below:.
+Our system is developed on the basis of the state-of-the-art [VINS-Fusion](https://github.com/HKUST-Aerial-Robotics/VINS-Fusion), which contains visual-inertial odometry (vins_estimator), pose graph optimization, and loop closure detection (loop_fusion). In this work, our proposed loop closure detection approach is used to replace VINS-Loop to improve robustness against viewpoint changes. The flow diagram, illustrating three main stages and the pipeline, is shown as below:.
 
-<img src="https://github.com/yutongwangBIT/SP-Loop/blob/master/support_files/image/pipeline.jpg" width = 80% height = 80% />
+<img src="https://github.com/yutongwangBIT/SP-Loop/blob/master/support_files/image/online.png" width = 80% height = 80% />
 
 Firstly, keyframes from vins_estimator are processed to extract the required SuperPoint descriptors. Secondly, a loop candidate is retrieved from the database based on the offline-trained visual vocabulary. Thirdly, the SuperGlue model is applied to find feature correspondences, which are then used in relative pose computation. Loop detection is finally predicted by examining the number of correspondences and the relative pose. 
 
@@ -16,7 +16,7 @@ Firstly, keyframes from vins_estimator are processed to extract the required Sup
 
 **Related Paper:**
 
-* **A Robust and Efficient Loop Closure Detection Approach for Hybrid Terrestrial and Aerial Vehicles**, Yutong Wang, Bin Xu, Wei Fan, Changle Xiang (submitted to IEEE RAL)
+* **Wang, Yutong, et al. "A Robust and Efficient Loop Closure Detection Approach for Hybrid Ground/Aerial Vehicles." Drones 7.2 (2023): 135.**
 
 
 ## 1. Prerequisites
@@ -76,43 +76,13 @@ play rosbags in sequence:
 ```
 
 ## 4. Real-world Data collected by a quad ducted-fan HyTAV
-Download  to YOUR_DATASET_FOLDER.
-```
-    roslaunch vins vins_rviz.launch
-```
+
+For security reason, we will upload our real-world data later.
 
 
-## 5. Docker Support
-To further facilitate the building process, we add docker in our code. Docker environment is like a sandbox, thus makes our code environment-independent. To run with docker, first make sure [ros](http://wiki.ros.org/ROS/Installation) and [docker](https://docs.docker.com/install/linux/docker-ce/ubuntu/) are installed on your machine. Then add your account to `docker` group by `sudo usermod -aG docker $YOUR_USER_NAME`. **Relaunch the terminal or logout and re-login if you get `Permission denied` error**, type:
-```
-cd ~/catkin_ws/src/VINS-Fusion/docker
-make build
-```
-Note that the docker building process may take a while depends on your network and machine. After VINS-Fusion successfully built, you can run vins estimator with script `run.sh`.
-Script `run.sh` can take several flags and arguments. Flag `-k` means KITTI, `-l` represents loop fusion, and `-g` stands for global fusion. You can get the usage details by `./run.sh -h`. Here are some examples with this script:
-```
-# Euroc Monocualr camera + IMU
-./run.sh ~/catkin_ws/src/VINS-Fusion/config/euroc/euroc_mono_imu_config.yaml
-
-# Euroc Stereo cameras + IMU with loop fusion
-./run.sh -l ~/catkin_ws/src/VINS-Fusion/config/euroc/euroc_mono_imu_config.yaml
-
-# KITTI Odometry (Stereo)
-./run.sh -k ~/catkin_ws/src/VINS-Fusion/config/kitti_odom/kitti_config00-02.yaml YOUR_DATASET_FOLDER/sequences/00/
-
-# KITTI Odometry (Stereo) with loop fusion
-./run.sh -kl ~/catkin_ws/src/VINS-Fusion/config/kitti_odom/kitti_config00-02.yaml YOUR_DATASET_FOLDER/sequences/00/
-
-#  KITTI GPS Fusion (Stereo + GPS)
-./run.sh -kg ~/catkin_ws/src/VINS-Fusion/config/kitti_raw/kitti_10_03_config.yaml YOUR_DATASET_FOLDER/2011_10_03_drive_0027_sync/
-
-```
-In Euroc cases, you need open another terminal and play your bag file. If you need modify the code, simply re-run `./run.sh` with proper auguments after your changes.
-
-
-## 6. Acknowledgements
+## 5. Acknowledgements
 We use [VINS-Fusion](https://github.com/HKUST-Aerial-Robotics/VINS-Fusion) as the framework, [ceres solver](http://ceres-solver.org/) for non-linear optimization and [DBoW2](https://github.com/dorian3d/DBoW2) for loop detection, a generic [camera model](https://github.com/hengli/camodocal) and [GeographicLib](https://geographiclib.sourceforge.io/). The pre-trained weights we adopt are from [SuperPoint](https://github.com/magicleap/SuperPointPretrainedNetwork) and [SuperGlue](https://github.com/magicleap/SuperGluePretrainedNetwork).
 
-## 7. License
+## 6. License
 The source code is released under [GPLv3](http://www.gnu.org/licenses/) license.
 
